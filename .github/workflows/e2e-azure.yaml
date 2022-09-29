@@ -66,3 +66,54 @@ jobs:
           az login --service-principal -u ${ARM_CLIENT_ID} -p ${ARM_CLIENT_SECRET} -t ${ARM_TENANT_ID}
           cd ./tests/azure
           go test -v -coverprofile cover.out -timeout 60m .
+  refactored-e2e-amd64-aks:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: CheckoutD
+        uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f # v3.4.0
+      - name: Setup Go
+        uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9 # v4.0.0
+        with:
+          go-version: 1.20.x
+          cache-dependency-path: |
+            **/go.sum
+            **/go.mod
+      - name: Setup Flux CLI
+        run: |
+          make build
+          mkdir -p $HOME/.local/bin
+          mv ./bin/flux $HOME/.local/bin
+      - name: Setup SOPS
+        run: |
+          wget https://github.com/mozilla/sops/releases/download/v3.7.1/sops-v3.7.1.linux
+          chmod +x sops-v3.7.1.linux
+          mkdir -p $HOME/.local/bin
+          mv sops-v3.7.1.linux $HOME/.local/bin/sops
+      - name: Setup Azure CLI
+        run: |
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+      - name: Run Azure e2e tests
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          TF_VAR_azure_devops_org: ${{ secrets.AZUREDEVOPS_ORG }}
+          TF_VAR_azuredevops_pat: ${{ secrets.AZUREDEVOPS_PAT }}
+          TF_VAR_location: "southcentralus"
+          AZUREDEVOPS_SSH_CONTENTS: ${{ secrets.AZUREDEVOPS_ID_RSA }}
+          AZUREDEVOPS_SSH_PUB_CONTENTS: ${{ secrets.AZUREDEVOPS_ID_RSA_PUB }}
+        run: |
+          echo $HOME
+          echo $PATH
+          ls $HOME/.local/bin
+          az login --service-principal -u ${ARM_CLIENT_ID} -p ${ARM_CLIENT_SECRET} -t ${ARM_TENANT_ID}
+          cd ./tests/integration
+          mkdir -p ./build/ssh
+          touch ./build/ssh/key
+          echo $AZUREDEVOPS_SSH_CONTENTS | base64 -d > build/ssh/key
+          export AZUREDEVOPS_SSH=build/ssh/key
+          touch ./build/ssh/key.pub
+          echo $AZUREDEVOPS_SSH_PUB_CONTENTS | base64 -d > ./build/ssh/key.pub
+          export AZUREDEVOPS_SSH_PUB=build/ssh/key.pub
+          FLUX_BINARY=$HOME/.local/bin/flux make test-azure
