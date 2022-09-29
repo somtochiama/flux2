@@ -1,7 +1,7 @@
 terraform {
   backend "azurerm" {
-    resource_group_name  = "terraform-state"
-    storage_account_name = "terraformstate0419"
+    resource_group_name  = "dx-somtochi"
+    storage_account_name = "terraformstate0417"
     container_name       = "shared-tfstate"
     key                  = "prod.terraform.tfstate"
   }
@@ -33,7 +33,7 @@ data "azurerm_client_config" "current" {}
 
 data "azurerm_subscription" "current" {}
 
-resource "azurerm_resource_group" "this" {
-  name     = "e2e-shared"
-  location = "West Europe"
+data "azurerm_resource_group" "this" {
+  name     = "dx-somtochi"
+  # location = "West Europe"
 }

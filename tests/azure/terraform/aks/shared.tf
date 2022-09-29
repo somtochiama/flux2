@@ -1,9 +1,9 @@
 locals {
-  shared_suffix = "oarfish"
+  shared_suffix = "chipmunk"
 }
 
 data "azurerm_resource_group" "shared" {
-  name = "e2e-shared"
+  name = "dx-somtochi"
 }
 
 data "azurerm_container_registry" "shared" {

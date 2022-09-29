@@ -1,3 +1,10 @@
+resource "azurerm_container_registry" "this" {
+  name                = "acrapps${random_pet.suffix.id}"
+  resource_group_name = "dx-somtochi"
+  location            = azurerm_resource_group.this.location
+  sku                 = "Standard"
+}
+
 resource "azuread_application" "flux" {
   display_name = "flux-${local.name_suffix}"
 
@@ -40,21 +47,14 @@ resource "azuread_service_principal_password" "flux" {
   service_principal_id = azuread_service_principal.flux.object_id
 }
 
-resource "azurerm_role_assignment" "acr" {
-  scope                = data.azurerm_container_registry.shared.id
+resource "azurerm_role_assignment" "acr_pull" {
+  scope                = resource.azurerm_container_registry.this.id
   role_definition_name = "AcrPull"
   principal_id         = azuread_service_principal.flux.object_id
 }
 
-resource "azurerm_key_vault_access_policy" "sops_decrypt" {
-  key_vault_id = azurerm_key_vault.this.id
-  tenant_id    = data.azurerm_client_config.current.tenant_id
-  object_id    = azuread_service_principal.flux.object_id
-
-  key_permissions = [
-    "Encrypt",
-    "Decrypt",
-    "Get",
-    "List",
-  ]
+resource "azurerm_role_assignment" "acr_push" {
+  scope                = resource.azurerm_container_registry.this.id
+  role_definition_name = "AcrPush"
+  principal_id         = azuread_service_principal.flux.object_id
 }
