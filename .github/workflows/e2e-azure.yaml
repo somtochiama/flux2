@@ -2,6 +2,10 @@ name: e2e-azure
 
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'test version'
+        required: false
   schedule:
     - cron:  '0 6 * * *'
   push:
@@ -52,10 +56,14 @@ jobs:
           ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          TF_VAR_azure_devops_org: ${{ secrets.AZUREDEVOPS_ORG }}
+          TF_VAR_azuredevops_pat: ${{ secrets.AZUREDEVOPS_PAT }}
+          TF_VAR_azuredevops_id_rsa: ${{ secrets.AZUREDEVOPS_ID_RSA }}
+          TF_VAR_azuredevops_id_rsa_pub: ${{ secrets.AZUREDEVOPS_ID_RSA_PUB }}
         run: |
           echo $HOME
           echo $PATH
           ls $HOME/.local/bin
           az login --service-principal -u ${ARM_CLIENT_ID} -p ${ARM_CLIENT_SECRET} -t ${ARM_TENANT_ID}
-          cd ./tests/azure
-          go test -v -coverprofile cover.out -timeout 60m .
+          cd ./tests/integration
+          make test-azure
