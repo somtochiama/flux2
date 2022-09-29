@@ -22,10 +22,18 @@ resource "azuread_application" "flux" {
       type = "Role"
     }
   }
+
+  owners = [
+    data.azurerm_client_config.current.object_id,
+  ]
 }
 
 resource "azuread_service_principal" "flux" {
   application_id = azuread_application.flux.application_id
+  
+  owners = [
+    data.azurerm_client_config.current.object_id,
+  ]
 }
 
 resource "azuread_service_principal_password" "flux" {

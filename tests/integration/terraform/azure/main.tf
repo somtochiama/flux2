@@ -1,10 +1,4 @@
 terraform {
-  backend "azurerm" {
-    resource_group_name  = "dx-somtochi"
-    storage_account_name = "terraformstate0417"
-    container_name       = "aks-tfstate"
-    key                  = "prod.terraform.tfstate"
-  }
 
   required_version = "1.2.8"
 
@@ -30,15 +24,18 @@ provider "azurerm" {
 
 provider "azuredevops" {
   org_service_url = "https://dev.azure.com/${local.azure_devops_org}"
-  personal_access_token = data.azurerm_key_vault_secret.shared_pat.value
+  personal_access_token = var.azuredevops_pat
 }
 
 data "azurerm_client_config" "current" {}
 
-resource "random_pet" "suffix" {}
+resource "random_pet" "suffix" {
+  length = 1
+  separator = ""
+}
 
 locals {
-  azure_devops_org = "somtochi0669"
+  azure_devops_org = var.azure_devops_org
   name_suffix = "e2e-${random_pet.suffix.id}"
 }
 

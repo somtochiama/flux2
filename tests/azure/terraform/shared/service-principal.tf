@@ -23,6 +23,10 @@ resource "azuread_application" "azure_devops" {
       type = "Role"
     }
   }
+
+  owners = [
+    data.azurerm_client_config.current.object_id,
+  ]
 }
 
 resource "azuread_application_password" "azure_devops" {
@@ -32,6 +36,9 @@ resource "azuread_application_password" "azure_devops" {
 
 resource "azuread_service_principal" "azure_devops" {
   application_id = azuread_application.azure_devops.application_id
+  owners = [
+    data.azurerm_client_config.current.object_id,
+  ]
 }
 
 resource "azurerm_role_assignment" "azure_devops_acr" {
@@ -65,6 +72,11 @@ resource "azuread_application" "github" {
       type = "Role"
     }
   }
+
+  owners = [
+    data.azurerm_client_config.current.object_id,
+    # ... plus any other desired owners
+  ]
 }
 
 resource "azuread_application_password" "github" {
@@ -74,15 +86,18 @@ resource "azuread_application_password" "github" {
 
 resource "azuread_service_principal" "github" {
   application_id = azuread_application.github.application_id
+  owners = [
+    data.azurerm_client_config.current.object_id,
+  ]
 }
 
 data "azurerm_storage_account" "terraform_state" {
-  resource_group_name = "terraform-state"
-  name                = "terraformstate0419"
+  resource_group_name = "dx-somtochi"
+  name                = "terraformstate0417"
 }
 
 resource "azurerm_role_assignment" "github_resource_group" {
-  scope              = data.azurerm_subscription.current.id
+  scope              = data.azurerm_resource_group.this.id
   role_definition_name = "Contributor"
   principal_id       = azuread_service_principal.github.object_id
 }
