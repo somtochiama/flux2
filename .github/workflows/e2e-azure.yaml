@@ -56,10 +56,10 @@ jobs:
           ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
-          TF_VAR_azure_devops_org: ${{ secrets.azuredevops_org }}
-          TF_VAR_azuredevops_pat: ${{ secrets.azuredevops_pat }}
-          TF_VAR_azuredevops_id_rsa: ${{ secrets.azuredevops_id_rsa }}
-          TF_VAR_azuredevops_id_rsa_pub: ${{ secrets.azuredevops_id_rsa_pub }}
+          TF_VAR_azure_devops_org: ${{ secrets.AZUREDEVOPS_ORG }}
+          TF_VAR_azuredevops_pat: ${{ secrets.AZUREDEVOPS_PAT }}
+          TF_VAR_azuredevops_id_rsa: ${{ secrets.AZUREDEVOPS_ID_RSA }}
+          TF_VAR_azuredevops_id_rsa_pub: ${{ secrets.AZUREDEVOPS_ID_RSA_PUB }}
         run: |
           echo $HOME
           echo $PATH
