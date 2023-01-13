@@ -39,11 +39,6 @@ locals {
   name_suffix = "e2e-${random_pet.suffix.id}"
 }
 
-resource "azurerm_resource_group" "this" {
-  name     = "rg-${local.name_suffix}"
-  location = "West Europe"
-
-  tags = {
-    environment = "e2e"
-  }
+data "azurerm_resource_group" "this" {
+  name     = "dx-somtochi"
 }

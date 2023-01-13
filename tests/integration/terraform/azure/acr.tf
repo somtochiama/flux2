@@ -1,7 +1,7 @@
 resource "azurerm_container_registry" "this" {
   name                = "acrapps${random_pet.suffix.id}"
   resource_group_name = "dx-somtochi"
-  location            = azurerm_resource_group.this.location
+  location            = data.azurerm_resource_group.this.location
   sku                 = "Standard"
 }
 
