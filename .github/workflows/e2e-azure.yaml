@@ -2,10 +2,6 @@ name: e2e-azure
 
 on:
   workflow_dispatch:
-    inputs:
-      tag:
-        description: 'test version'
-        required: false
   schedule:
     - cron:  '0 6 * * *'
   push:
@@ -16,6 +12,54 @@ permissions:
 
 jobs:
   e2e-amd64-aks:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c
+      - name: Restore Go cache
+        uses: actions/cache@4723a57e26efda3a62cbde1812113b730952852d
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go1.18-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go1.18-
+      - name: Setup Go
+        uses: actions/setup-go@6edd4406fa81c3da01a34fa6f6343087c207a568
+        with:
+          go-version: 1.19.x
+      - name: Setup Flux CLI
+        run: |
+          make build
+          mkdir -p $HOME/.local/bin
+          mv ./bin/flux $HOME/.local/bin
+      - name: Setup SOPS
+        run: |
+          wget https://github.com/mozilla/sops/releases/download/v3.7.1/sops-v3.7.1.linux
+          chmod +x sops-v3.7.1.linux
+          mkdir -p $HOME/.local/bin
+          mv sops-v3.7.1.linux $HOME/.local/bin/sops
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@633666f66e0061ca3b725c73b2ec20cd13a8fdd1  # v2
+        with:
+          terraform_version: 1.2.8
+          terraform_wrapper: false
+      - name: Setup Azure CLI
+        run: |
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+      - name: Run Azure e2e tests
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+        run: |
+          echo $HOME
+          echo $PATH
+          ls $HOME/.local/bin
+          cd ./tests/azure
+          go test -v -coverprofile cover.out -timeout 60m .
+          
+  refactored-e2e-amd64-aks:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
