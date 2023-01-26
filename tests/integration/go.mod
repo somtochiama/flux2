@@ -1,25 +1,25 @@
-module github.com/fluxcd/flux2/tests/azure
+module github.com/fluxcd/flux2/tests/integration
 
 go 1.18
 
 require (
 	github.com/Azure/azure-event-hubs-go/v3 v3.3.18
-	github.com/fluxcd/go-git/v5 v5.0.0-20221201130551-583c913c13b7
+	github.com/fluxcd/go-git/v5 v5.0.0-20221206140629-ec778c2c37df
 	github.com/fluxcd/helm-controller/api v0.24.0
 	github.com/fluxcd/image-automation-controller/api v0.25.0
 	github.com/fluxcd/image-reflector-controller/api v0.21.0
 	github.com/fluxcd/kustomize-controller/api v0.28.0
 	github.com/fluxcd/notification-controller/api v0.26.0
 	github.com/fluxcd/pkg/apis/meta v0.15.0
-	github.com/fluxcd/pkg/git v0.7.0
-	github.com/fluxcd/pkg/git/gogit v0.2.0
+	github.com/fluxcd/pkg/git v0.8.0
+	github.com/fluxcd/pkg/git/gogit v0.5.0
 	github.com/fluxcd/pkg/runtime v0.18.0
+	github.com/fluxcd/pkg/ssh v0.7.0
 	github.com/fluxcd/source-controller/api v0.29.0
 	github.com/microsoft/azure-devops-go-api/azuredevops v1.0.0-b5
 	github.com/onsi/gomega v1.24.1
 	github.com/stretchr/testify v1.8.0
 	github.com/whilp/git-urls v1.0.0
-	go.uber.org/multierr v1.8.0
 	k8s.io/api v0.25.0
 	k8s.io/apimachinery v0.25.0
 	k8s.io/client-go v0.25.0
@@ -34,7 +34,6 @@ require (
 	github.com/cloudflare/circl v1.3.0 // indirect
 	github.com/cyphar/filepath-securejoin v0.2.3 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
-	github.com/fluxcd/pkg/ssh v0.7.0 // indirect
 	github.com/fluxcd/pkg/version v0.2.0 // indirect
 	github.com/go-git/gcfg v1.5.0 // indirect
 	github.com/go-git/go-billy/v5 v5.3.1 // indirect
@@ -44,11 +43,12 @@ require (
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
 	github.com/klauspost/compress v1.15.8 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
-	github.com/pjbgf/sha1cd v0.2.1 // indirect
+	github.com/pjbgf/sha1cd v0.2.3 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/sergi/go-diff v1.2.0 // indirect
 	github.com/skeema/knownhosts v1.1.0 // indirect
 	github.com/xanzy/ssh-agent v0.3.2 // indirect
+	go.uber.org/multierr v1.8.0 // indirect
 	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 )
@@ -128,7 +128,7 @@ require (
 	github.com/zclconf/go-cty v1.11.0 // indirect
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/zap v1.23.0 // indirect
-	golang.org/x/crypto v0.2.0 // indirect
+	golang.org/x/crypto v0.2.0
 	golang.org/x/net v0.2.0 // indirect
 	golang.org/x/oauth2 v0.0.0-20220718184931-c8730f7fcb92 // indirect
 	golang.org/x/sys v0.2.0 // indirect

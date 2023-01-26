@@ -19,13 +19,14 @@ package test
 import (
 	"context"
 	"fmt"
-	"github.com/stretchr/testify/require"
+
 	"io"
 	"os"
 	"testing"
 	"time"
 
 	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -40,7 +41,6 @@ func TestKeyVaultSops(t *testing.T) {
 	g := NewWithT(t)
 	ctx := context.TODO()
 	name := "key-vault-sops"
-	repoUrl := cfg.applicationRepository.http
 	secretYaml := `apiVersion: v1
 kind: Secret
 metadata:
@@ -48,20 +48,22 @@ metadata:
 stringData:
   foo: "bar"`
 
-	c, tmpDir, err := getRepository(repoUrl, name, true, cfg.gitPat)
-	err = tftestenv.RunCommand(ctx, tmpDir, "mkdir -p ./key-vault-sops", tftestenv.RunCommandOptions{})
+	repoUrl := getTransportURL(cfg.applicationRepository)
+	client, err := getRepository(ctx, repoUrl, defaultBranch, cfg.defaultAuthOpts)
 	g.Expect(err).ToNot(HaveOccurred())
-	err = tftestenv.RunCommand(ctx, tmpDir, fmt.Sprintf("echo \"%s\" > ./key-vault-sops/secret.enc.yaml", secretYaml), tftestenv.RunCommandOptions{})
+	err = tftestenv.RunCommand(ctx, client.Path(), "mkdir -p ./key-vault-sops", tftestenv.RunCommandOptions{})
 	g.Expect(err).ToNot(HaveOccurred())
-	err = tftestenv.RunCommand(ctx, tmpDir, fmt.Sprintf("sops --encrypt --encrypted-regex '^(data|stringData)$' %s --in-place ./key-vault-sops/secret.enc.yaml", cfg.sopsArgs), tftestenv.RunCommandOptions{})
+	err = tftestenv.RunCommand(ctx, client.Path(), fmt.Sprintf("echo \"%s\" > ./key-vault-sops/secret.enc.yaml", secretYaml), tftestenv.RunCommandOptions{})
+	g.Expect(err).ToNot(HaveOccurred())
+	err = tftestenv.RunCommand(ctx, client.Path(), fmt.Sprintf("sops --encrypt --encrypted-regex '^(data|stringData)$' %s --in-place ./key-vault-sops/secret.enc.yaml", cfg.sopsArgs), tftestenv.RunCommandOptions{})
 	g.Expect(err).ToNot(HaveOccurred())
 
-	r, err := os.Open(fmt.Sprintf("%s/key-vault-sops/secret.enc.yaml", tmpDir))
+	r, err := os.Open(fmt.Sprintf("%s/key-vault-sops/secret.enc.yaml", client.Path()))
 	require.NoError(t, err)
 
 	files := make(map[string]io.Reader)
-	files["./key-vault-sops/secret.enc.yaml"] = r
-	err = commitAndPushAll(c, files, name)
+	files["key-vault-sops/secret.enc.yaml"] = r
+	err = commitAndPushAll(ctx, client, files, name)
 	g.Expect(err).ToNot(HaveOccurred())
 
 	modifyKsSpec := func(spec *kustomizev1.KustomizationSpec) {
@@ -79,6 +81,7 @@ stringData:
 		repoURL:      repoUrl,
 		path:         "./key-vault-sops",
 		modifyKsSpec: modifyKsSpec,
+		protocol:     cfg.defaultGitTransport,
 	})
 	g.Expect(err).ToNot(HaveOccurred())
 
@@ -115,5 +118,5 @@ stringData:
 		}
 
 		return false
-	}, 120*time.Second, 5*time.Second)
+	}, 120*time.Second, 5*time.Second).Should(BeTrue())
 }

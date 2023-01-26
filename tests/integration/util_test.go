@@ -18,19 +18,22 @@ package test
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"github.com/google/go-containerregistry/pkg/authn"
+	"github.com/fluxcd/pkg/git/gogit"
+	"github.com/fluxcd/pkg/git/repository"
 	"io"
 	"log"
-	"os/exec"
-
+	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/crane"
-
+	gossh "golang.org/x/crypto/ssh"
 	corev1 "k8s.io/api/core/v1"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -43,7 +46,9 @@ import (
 	gitconfig "github.com/fluxcd/go-git/v5/config"
 	"github.com/fluxcd/go-git/v5/plumbing"
 	"github.com/fluxcd/go-git/v5/plumbing/object"
+	"github.com/fluxcd/go-git/v5/plumbing/transport"
 	"github.com/fluxcd/go-git/v5/plumbing/transport/http"
+	"github.com/fluxcd/go-git/v5/plumbing/transport/ssh"
 	helmv2beta1 "github.com/fluxcd/helm-controller/api/v2beta1"
 	automationv1beta1 "github.com/fluxcd/image-automation-controller/api/v1beta1"
 	reflectorv1beta1 "github.com/fluxcd/image-reflector-controller/api/v1beta1"
@@ -51,8 +56,7 @@ import (
 	notiv1beta1 "github.com/fluxcd/notification-controller/api/v1beta1"
 	"github.com/fluxcd/pkg/apis/meta"
 	"github.com/fluxcd/pkg/git"
-	"github.com/fluxcd/pkg/git/gogit"
-	"github.com/fluxcd/pkg/git/repository"
+	"github.com/fluxcd/pkg/ssh/knownhosts"
 	sourcev1 "github.com/fluxcd/source-controller/api/v1beta2"
 )
 
@@ -90,10 +94,7 @@ func setupScheme() error {
 // fluxConfig contains configuration for installing FLux in a cluster
 type installArgs struct {
 	kubeconfigPath string
-	repoURL        string
-	password       string
 	secretData     map[string]string
-	kustomizeYaml  string
 }
 
 // installFlux adds the core Flux components to the cluster specified in the kubeconfig file.
@@ -104,9 +105,11 @@ func installFlux(ctx context.Context, kubeClient client.Client, conf installArgs
 			Name: "flux-system",
 		},
 	}
-	err := testEnv.Client.Create(ctx, &namespace)
+	_, err := controllerutil.CreateOrUpdate(ctx, kubeClient, &namespace, func() error {
+		return nil
+	})
 
-	// Create additional objects that are needed for flux to run correctly
+	// Create additional secrets that are needed for flux to run correctly
 	if conf.secretData != nil {
 		envCreds := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "env-creds", Namespace: "flux-system"}}
 		_, err = controllerutil.CreateOrUpdate(ctx, kubeClient, envCreds, func() error {
@@ -119,28 +122,56 @@ func installFlux(ctx context.Context, kubeClient client.Client, conf installArgs
 	}
 
 	kustomizeYaml := `
-resources:
-- gotk-components.yaml
-- gotk-sync.yaml
-`
-	if conf.kustomizeYaml != "" {
-		kustomizeYaml = conf.kustomizeYaml
+	resources:
+	- gotk-components.yaml
+	- gotk-sync.yaml
+	`
+	if cfg.kustomizationYaml != "" {
+		kustomizeYaml = cfg.kustomizationYaml
 	}
 
 	files := make(map[string]io.Reader)
-	files["./clusters/e2e/flux-system/kustomization.yaml"] = strings.NewReader(kustomizeYaml)
-	files["./clusters/e2e/flux-system/gotk-components.yaml"] = strings.NewReader("")
-	files["./clusters/e2e/flux-system/gotk-sync.yaml"] = strings.NewReader("")
+	files["clusters/e2e/flux-system/kustomization.yaml"] = strings.NewReader(kustomizeYaml)
+	files["clusters/e2e/flux-system/gotk-components.yaml"] = strings.NewReader("")
+	files["clusters/e2e/flux-system/gotk-sync.yaml"] = strings.NewReader("")
 
-	repo, _, err := getRepository(conf.repoURL, defaultBranch, true, conf.password)
-	err = commitAndPushAll(repo, files, defaultBranch)
+	repoURL := getTransportURL(cfg.fleetInfraRepository)
+	if err != nil {
+		return err
+	}
+	c, err := getRepository(ctx, repoURL, defaultBranch, cfg.defaultAuthOpts)
 	if err != nil {
 		return err
 	}
 
-	bootstrapCmd := fmt.Sprintf("flux bootstrap git  --url=%s --password=%s --kubeconfig=%s"+
-		" --token-auth --path=clusters/e2e  --components-extra image-reflector-controller,image-automation-controller",
-		conf.repoURL, conf.password, conf.kubeconfigPath)
+	err = commitAndPushAll(ctx, c, files, defaultBranch)
+	if err != nil {
+		return err
+	}
+
+	var bootstrapArgs string
+	if cfg.defaultGitTransport == git.SSH {
+		f, err := os.CreateTemp("", "*")
+		if err != nil {
+			return err
+		}
+		err = os.WriteFile(f.Name(), []byte(cfg.gitPrivateKey), 0o644)
+		if err != nil {
+			return err
+		}
+		bootstrapArgs = fmt.Sprintf("--private-key-file=%s", f.Name())
+	} else {
+		bootstrapArgs = fmt.Sprintf("--token-auth --password=%s", cfg.gitPat)
+	}
+
+	bootstrapCmd := fmt.Sprintf("flux bootstrap git  --url=%s %s --kubeconfig=%s --path=clusters/e2e  --components-extra image-reflector-controller,image-automation-controller",
+		repoURL, bootstrapArgs, conf.kubeconfigPath)
+
+	if cfg.defaultGitTransport == git.SSH {
+		// supply prompt
+		bootstrapCmd = fmt.Sprintf("echo y | %s", bootstrapCmd)
+	}
+
 	if err := runCommand(context.Background(), 15*time.Minute, "./", bootstrapCmd); err != nil {
 		return err
 	}
@@ -159,6 +190,7 @@ func verifyGitAndKustomization(ctx context.Context, kubeClient client.Client, na
 	if err != nil {
 		return err
 	}
+
 	if apimeta.IsStatusConditionPresentAndEqual(source.Status.Conditions, meta.ReadyCondition, metav1.ConditionTrue) == false {
 		return fmt.Errorf("source condition not ready")
 	}
@@ -175,7 +207,7 @@ func verifyGitAndKustomization(ctx context.Context, kubeClient client.Client, na
 
 type nsConfig struct {
 	repoURL       string
-	protocol      string
+	protocol      git.TransportType
 	objectName    string
 	path          string
 	modifyGitSpec func(spec *sourcev1.GitRepositorySpec)
@@ -185,6 +217,11 @@ type nsConfig struct {
 // setupNamespaces creates the namespace, then creates the git secret,
 // git repository and kustomization in that namespace
 func setupNamespace(ctx context.Context, name string, opts nsConfig) error {
+	transport := cfg.defaultGitTransport
+	if opts.protocol != "" {
+		transport = opts.protocol
+	}
+
 	namespace := corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
@@ -193,6 +230,9 @@ func setupNamespace(ctx context.Context, name string, opts nsConfig) error {
 	_, err := controllerutil.CreateOrUpdate(ctx, testEnv.Client, &namespace, func() error {
 		return nil
 	})
+	if err != nil {
+		return err
+	}
 
 	secret := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -205,7 +245,8 @@ func setupNamespace(ctx context.Context, name string, opts nsConfig) error {
 		"username": "git",
 		"password": cfg.gitPat,
 	}
-	if opts.protocol == "ssh" {
+
+	if transport == git.SSH {
 		secretData = map[string]string{
 			"identity":     cfg.gitPrivateKey,
 			"identity.pub": cfg.gitPublicKey,
@@ -217,6 +258,9 @@ func setupNamespace(ctx context.Context, name string, opts nsConfig) error {
 		secret.StringData = secretData
 		return nil
 	})
+	if err != nil {
+		return err
+	}
 
 	gitSpec := &sourcev1.GitRepositorySpec{
 		Interval: metav1.Duration{
@@ -230,9 +274,7 @@ func setupNamespace(ctx context.Context, name string, opts nsConfig) error {
 		},
 		URL: opts.repoURL,
 	}
-	if infraOpts.Provider == "azure" {
-		gitSpec.GitImplementation = sourcev1.LibGit2Implementation
-	}
+
 	if opts.modifyGitSpec != nil {
 		opts.modifyGitSpec(gitSpec)
 	}
@@ -272,15 +314,93 @@ func setupNamespace(ctx context.Context, name string, opts nsConfig) error {
 	return nil
 }
 
+// getRepository creates a temporary directory and clones the git repository to it.
+// if the repository is empty, it initializes a new git repository
+func getRepository(ctx context.Context, repoURL, branchName string, authOpts *git.AuthOptions) (*gogit.Client, error) {
+
+	tmpDir, err := os.MkdirTemp("", "*-repository")
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := gogit.NewClient(tmpDir, authOpts, gogit.WithSingleBranch(false), gogit.WithDiskStorage())
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = client.Clone(ctx, repoURL, repository.CloneOptions{
+		CheckoutStrategy: repository.CheckoutStrategy{
+			Branch: branchName,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return client, nil
+}
+
 func addFile(dir, path, content string) error {
-	err := os.WriteFile(filepath.Join(dir, path), []byte(content), 0777)
+	fullPath := filepath.Join(dir, path)
+	err := os.MkdirAll(filepath.Dir(fullPath), 0777)
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile(fullPath, []byte(content), 0777)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func commitAndPushAll(client *gogit.Client, files map[string]io.Reader, branchName string) error {
+// commitAndPushAll checks out to the specified branch, creates the files, commits and then pushes them to
+// the remote git repository.
+func commitAndPushAll(ctx context.Context, client *gogit.Client, files map[string]io.Reader, branchName string) error {
+	switchAgain := false
+	err := switchBranch(client, branchName)
+	if err != nil {
+		// we get reference not found error when trying to check out to a new branch on empty directory
+		// so we make a commit then attempt to checkout again.
+		if errors.Is(err, plumbing.ErrReferenceNotFound) {
+			switchAgain = true
+		} else {
+			return err
+		}
+	}
+
+	_, err = client.Commit(git.Commit{
+		Author: git.Signature{
+			Name:  "git",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	}, repository.WithFiles(files))
+	if err != nil {
+		if errors.Is(err, git.ErrNoStagedFiles) {
+			return nil
+		}
+
+		return err
+	}
+
+	if switchAgain {
+		if err := switchBranch(client, branchName); err != nil {
+			return err
+		}
+	}
+
+	err = client.Push(ctx)
+	if err != nil {
+		return fmt.Errorf("unable to push: %s", err)
+	}
+
+	return nil
+}
+
+// SwitchBranch switches to a branch, if the branch doesn't exist and there's a remote branch with the same name,
+// it creates a new branch pointing to the remote's head.
+func switchBranch(client *gogit.Client, branchName string) error {
 	repo, err := extgogit.PlainOpen(client.Path())
 	if err != nil {
 		return err
@@ -291,38 +411,53 @@ func commitAndPushAll(client *gogit.Client, files map[string]io.Reader, branchNa
 		return err
 	}
 
+	remote, local := true, true
+	remRefName := plumbing.NewRemoteReferenceName(extgogit.DefaultRemoteName, branchName)
+	remRef, err := repo.Reference(remRefName, true)
+	if errors.Is(err, plumbing.ErrReferenceNotFound) {
+		remote = false
+	} else if err != nil {
+		return fmt.Errorf("could not fetch remote reference '%s': %w", branchName, err)
+	}
+
+	refName := plumbing.NewBranchReferenceName(branchName)
+	_, err = repo.Reference(refName, true)
+	if errors.Is(err, plumbing.ErrReferenceNotFound) {
+		local = false
+	} else if err != nil {
+		return fmt.Errorf("could not fetch local reference '%s': %w", branchName, err)
+	}
+
+	create := false
+	// If the remote branch exists, but not the local branch, create a local
+	// reference to the remote's HEAD.
+	if remote && !local {
+		branchRef := plumbing.NewHashReference(refName, remRef.Hash())
+
+		err = repo.Storer.SetReference(branchRef)
+		if err != nil {
+			return fmt.Errorf("could not create reference to remote HEAD '%s': %w", branchRef.Hash().String(), err)
+		}
+	} else if !remote && !local {
+		// If the target branch does not exist locally or remotely, create a new
+		// branch using the current worktree HEAD.
+		create = true
+	}
+
 	err = wt.Checkout(&extgogit.CheckoutOptions{
 		Branch: plumbing.NewBranchReferenceName(branchName),
 		Force:  true,
+		Create: create,
 	})
 	if err != nil {
-		return err
-	}
-
-	f := repository.WithFiles(files)
-	_, err = client.Commit(git.Commit{
-		Author: git.Signature{
-			Name:  "git",
-			Email: "test@example.com",
-			When:  time.Now(),
-		},
-		Message: "add file",
-	}, f)
-
-	if err != nil {
-		return err
-	}
-
-	err = client.Push(context.Background())
-	if err != nil {
-		return err
+		return fmt.Errorf("could not checkout to branch '%s': %w", branchName, err)
 	}
 
 	return nil
 }
 
-func createTagAndPush(client *gogit.Client, branchName, newTag, password string) error {
-	repo, err := extgogit.PlainOpen(client.Path())
+func createTagAndPush(ctx context.Context, path, branchName, newTag string, opts *git.AuthOptions) error {
+	repo, err := extgogit.PlainOpen(path)
 	if err != nil {
 		return err
 	}
@@ -337,10 +472,28 @@ func createTagAndPush(client *gogit.Client, branchName, newTag, password string)
 		return err
 	}
 
+	auth, err := transportAuth()
+	if err != nil {
+		return err
+	}
+
 	err = tags.ForEach(func(tag *object.Tag) error {
 		if tag.Name == newTag {
 			err = repo.DeleteTag(tag.Name)
 			if err != nil {
+				return err
+			}
+
+			// delete remote tag
+			po := &extgogit.PushOptions{
+				RemoteName: "origin",
+				Progress:   os.Stdout,
+				RefSpecs:   []gitconfig.RefSpec{gitconfig.RefSpec(":refs/tags/v1")},
+				Auth:       auth,
+				Force:      true,
+			}
+
+			if err := repo.Push(po); err != nil {
 				return err
 			}
 		}
@@ -361,13 +514,9 @@ func createTagAndPush(client *gogit.Client, branchName, newTag, password string)
 		Tagger:  sig,
 		Message: "create tag",
 	})
+
 	if err != nil {
 		return err
-	}
-
-	auth := &http.BasicAuth{
-		Username: "git",
-		Password: password,
 	}
 
 	po := &extgogit.PushOptions{
@@ -376,44 +525,12 @@ func createTagAndPush(client *gogit.Client, branchName, newTag, password string)
 		RefSpecs:   []gitconfig.RefSpec{gitconfig.RefSpec("refs/tags/*:refs/tags/*")},
 		Auth:       auth,
 	}
-	if err := repo.Push(po); err != nil {
+
+	if err := repo.PushContext(ctx, po); err != nil {
 		return err
 	}
 
 	return nil
-}
-
-func getRepository(repoURL, branchName string, overrideBranch bool, password string) (*gogit.Client, string, error) {
-	checkoutBranch := defaultBranch
-	if overrideBranch == false {
-		checkoutBranch = branchName
-	}
-
-	tmpDir, err := os.MkdirTemp("", "*-repository")
-	if err != nil {
-		return nil, "", err
-	}
-	c, err := gogit.NewClient(tmpDir, &git.AuthOptions{
-		Transport: git.HTTPS,
-		Username:  "git",
-		Password:  password,
-	})
-	if err != nil {
-		return nil, "", err
-	}
-
-	_, err = c.Clone(context.Background(), repoURL, repository.CloneOptions{
-		CheckoutStrategy: repository.CheckoutStrategy{
-			Branch: checkoutBranch,
-		},
-	})
-
-	err = c.SwitchBranch(context.Background(), branchName)
-	if err != nil {
-		return nil, "", err
-	}
-
-	return c, tmpDir, nil
 }
 
 func runCommand(ctx context.Context, timeout time.Duration, dir, command string) error {
@@ -447,4 +564,87 @@ func pushImagesFromURL(repoURL, imgURL string, tags []string) error {
 	}
 
 	return nil
+}
+
+func getTransportURL(repoCfg repoConfig) string {
+	if cfg.defaultGitTransport == git.SSH {
+		return repoCfg.ssh
+	}
+
+	return repoCfg.http
+}
+
+func authOpts(repoURL string, authData map[string][]byte) (*git.AuthOptions, error) {
+	u, err := url.Parse(repoURL)
+	if err != nil {
+		return nil, err
+	}
+
+	authOpts, err := git.NewAuthOptions(*u, authData)
+	if err != nil {
+		return nil, err
+	}
+	return authOpts, nil
+}
+
+// transportAuth constructs the transport.AuthMethod for the default git transport in the config of
+// the given git.AuthOptions. It returns the result, or an error.
+func transportAuth() (transport.AuthMethod, error) {
+	if cfg.defaultGitTransport == git.SSH {
+		pk, err := ssh.NewPublicKeys(cfg.gitUsername, []byte(cfg.gitPrivateKey), "")
+		if err != nil {
+			return nil, err
+		}
+
+		clbk, err := knownhosts.New([]byte(cfg.knownHosts))
+		if err != nil {
+			return nil, err
+		}
+
+		return &CustomPublicKeys{
+			pk:       pk,
+			callback: clbk,
+		}, nil
+	} else {
+		return &http.BasicAuth{
+			Username: "git",
+			Password: cfg.gitPat,
+		}, nil
+	}
+}
+
+// TODO: Export function from fluxcd/pkg
+// Copied from: https://github.com/fluxcd/pkg/blob/main/git/gogit/transport.go
+// CustomPublicKeys is a wrapper around ssh.PublicKeys to help us
+// customize the ssh config. It implements ssh.AuthMethod.
+type CustomPublicKeys struct {
+	pk       *ssh.PublicKeys
+	callback gossh.HostKeyCallback
+}
+
+func (a *CustomPublicKeys) Name() string {
+	return a.pk.Name()
+}
+
+func (a *CustomPublicKeys) String() string {
+	return a.pk.String()
+}
+
+func (a *CustomPublicKeys) ClientConfig() (*gossh.ClientConfig, error) {
+	config, err := a.pk.ClientConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	if a.callback != nil {
+		config.HostKeyCallback = a.callback
+	}
+	if len(git.KexAlgos) > 0 {
+		config.Config.KeyExchanges = git.KexAlgos
+	}
+	if len(git.HostKeyAlgos) > 0 {
+		config.HostKeyAlgorithms = git.HostKeyAlgos
+	}
+
+	return config, nil
 }

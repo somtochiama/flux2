@@ -68,17 +68,17 @@ func TestNotification(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// Setup Flux resources
-	repoUrl := cfg.applicationRepository.http
 	manifest := `apiVersion: v1
 kind: ConfigMap
 metadata:
   name: foobar`
 
-	repo, _, err := getRepository(repoUrl, name, true, cfg.gitPat)
+	repoUrl := getTransportURL(cfg.applicationRepository)
+	client, err := getRepository(ctx, repoUrl, defaultBranch, cfg.defaultAuthOpts)
 	g.Expect(err).ToNot(HaveOccurred())
 	files := make(map[string]io.Reader)
 	files["configmap.yaml"] = strings.NewReader(manifest)
-	err = commitAndPushAll(repo, files, name)
+	err = commitAndPushAll(ctx, client, files, name)
 	g.Expect(err).ToNot(HaveOccurred())
 	err = setupNamespace(ctx, name, nsConfig{})
 	secret := corev1.Secret{
@@ -87,7 +87,7 @@ metadata:
 			Namespace: name,
 		},
 	}
-	_, err = controllerutil.CreateOrUpdate(ctx, cfg.client, &secret, func() error {
+	_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, &secret, func() error {
 		secret.StringData = map[string]string{
 			"address": cfg.notificationURL,
 		}
@@ -99,7 +99,7 @@ metadata:
 			Namespace: name,
 		},
 	}
-	_, err = controllerutil.CreateOrUpdate(ctx, cfg.client, &provider, func() error {
+	_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, &provider, func() error {
 		provider.Spec = notiv1beta1.ProviderSpec{
 			Type:    "azureeventhub",
 			Address: repoUrl,
@@ -116,7 +116,7 @@ metadata:
 			Namespace: name,
 		},
 	}
-	_, err = controllerutil.CreateOrUpdate(ctx, cfg.client, &alert, func() error {
+	_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, &alert, func() error {
 		alert.Spec = notiv1beta1.AlertSpec{
 			ProviderRef: meta.LocalObjectReference{
 				Name: provider.Name,
@@ -149,12 +149,12 @@ metadata:
 	})
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Eventually(func() bool {
-		err := verifyGitAndKustomization(ctx, cfg.client, name, name)
+		err := verifyGitAndKustomization(ctx, testEnv.Client, name, name)
 		if err != nil {
 			return false
 		}
 		return true
-	}, 60*time.Second, 5*time.Second)
+	}, 60*time.Second, 5*time.Second).Should(BeTrue())
 
 	// Wait to read even from event hub
 	g.Eventually(func() bool {
@@ -178,7 +178,7 @@ metadata:
 		default:
 			return false
 		}
-	}, 60*time.Second, 1*time.Second)
+	}, 60*time.Second, 1*time.Second).Should(BeTrue())
 	err = listenerHandler.Close(ctx)
 	g.Expect(err).ToNot(HaveOccurred())
 	err = hub.Close(ctx)
@@ -196,17 +196,17 @@ func TestAzureDevOpsCommitStatus(t *testing.T) {
 
 	ctx := context.TODO()
 	name := "commit-status"
-	repoUrl := cfg.applicationRepository.http
 	manifest := `apiVersion: v1
 kind: ConfigMap
 metadata:
   name: foobar`
 
-	c, _, err := getRepository(repoUrl, name, true, cfg.gitPat)
+	repoUrl := getTransportURL(cfg.applicationRepository)
+	c, err := getRepository(ctx, repoUrl, defaultBranch, cfg.defaultAuthOpts)
 	g.Expect(err).ToNot(HaveOccurred())
 	files := make(map[string]io.Reader)
 	files["configmap.yaml"] = strings.NewReader(manifest)
-	err = commitAndPushAll(c, files, name)
+	err = commitAndPushAll(ctx, c, files, name)
 	g.Expect(err).ToNot(HaveOccurred())
 
 	modifyKsSpec := func(spec *kustomizev1.KustomizationSpec) {
@@ -226,7 +226,7 @@ metadata:
 	})
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Eventually(func() bool {
-		err := verifyGitAndKustomization(ctx, cfg.client, name, name)
+		err := verifyGitAndKustomization(ctx, testEnv.Client, name, name)
 		if err != nil {
 			return false
 		}
@@ -239,7 +239,7 @@ metadata:
 			Namespace: name,
 		},
 	}
-	_, err = controllerutil.CreateOrUpdate(ctx, cfg.client, &secret, func() error {
+	_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, &secret, func() error {
 		secret.StringData = map[string]string{
 			"token": cfg.gitPat,
 		}
@@ -252,7 +252,7 @@ metadata:
 			Namespace: name,
 		},
 	}
-	_, err = controllerutil.CreateOrUpdate(ctx, cfg.client, &provider, func() error {
+	_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, &provider, func() error {
 		provider.Spec = notiv1beta1.ProviderSpec{
 			Type:    "azuredevops",
 			Address: repoUrl,
@@ -270,7 +270,7 @@ metadata:
 			Namespace: name,
 		},
 	}
-	_, err = controllerutil.CreateOrUpdate(ctx, cfg.client, &alert, func() error {
+	_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, &alert, func() error {
 		alert.Spec = notiv1beta1.AlertSpec{
 			ProviderRef: meta.LocalObjectReference{
 				Name: provider.Name,
@@ -291,6 +291,8 @@ metadata:
 	g.Expect(err).ToNot(HaveOccurred())
 
 	rev, err := c.Head()
+	g.Expect(err).ToNot(HaveOccurred())
+
 	connection := azuredevops.NewPatConnection(url.OrgURL, cfg.gitPat)
 	client, err := git.NewClient(ctx, connection)
 	g.Expect(err).ToNot(HaveOccurred())

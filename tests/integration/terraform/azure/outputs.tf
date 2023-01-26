@@ -6,17 +6,7 @@ output "kubeconfig" {
 
 output "shared_pat" {
   sensitive = true
-  value = data.azurerm_key_vault_secret.pat.value
-}
-
-output "shared_id_rsa" {
-  sensitive = true
-  value = data.azurerm_key_vault_secret.id_rsa.value
-}
-
-output "shared_id_rsa_pub" {
-  sensitive = true
-  value = data.azurerm_key_vault_secret.id_rsa_pub.value
+  value = var.azuredevops_pat
 }
 
 output "fleet_infra_repository" {

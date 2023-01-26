@@ -42,8 +42,7 @@ import (
 func TestImageRepositoryAndAutomation(t *testing.T) {
 	g := NewWithT(t)
 	ctx := context.TODO()
-	name := "image-repository-acr"
-	repoUrl := cfg.applicationRepository.http
+	name := "image-repository"
 	oldVersion := "1.0.0"
 	newVersion := "1.0.1"
 
@@ -52,11 +51,11 @@ func TestImageRepositoryAndAutomation(t *testing.T) {
 	err := pushImagesFromURL(imageURL, "ghcr.io/stefanprodan/podinfo", []string{oldVersion, newVersion})
 	g.Expect(err).ToNot(HaveOccurred())
 
-	manifest := `apiVersion: apps/v1
+	manifest := fmt.Sprintf(`apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: podinfo
-  namespace: {{ .ns }}
+  namespace: image-repository
 spec:
   selector:
     matchLabels:
@@ -68,7 +67,7 @@ spec:
     spec:
       containers:
       - name: podinfod
-        image: stefanprodan/container/podinfo:1.0.0 # {"$imagepolicy": "{{ .name }}:podinfo"}
+        image: stefanprodan/container/podinfo:1.0.0 # {"$imagepolicy": "%s:podinfo"}
         readinessProbe:
           exec:
             command:
@@ -78,14 +77,15 @@ spec:
             - localhost:9898/readyz
           initialDelaySeconds: 5
           timeoutSeconds: 5
-`
+`, name)
 
-	c, _, err := getRepository(repoUrl, name, true, cfg.gitPat)
+	repoUrl := getTransportURL(cfg.applicationRepository)
+	client, err := getRepository(ctx, repoUrl, defaultBranch, cfg.defaultAuthOpts)
 	g.Expect(err).ToNot(HaveOccurred())
 	files := make(map[string]io.Reader)
-	files["podinfo.yaml"] = strings.NewReader(manifest)
+	files["image-repository/podinfo.yaml"] = strings.NewReader(manifest)
 	g.Expect(err).ToNot(HaveOccurred())
-	err = commitAndPushAll(c, files, name)
+	err = commitAndPushAll(ctx, client, files, name)
 	g.Expect(err).ToNot(HaveOccurred())
 
 	modifyKsSpec := func(spec *kustomizev1.KustomizationSpec) {
@@ -99,7 +99,7 @@ spec:
 
 	err = setupNamespace(ctx, name, nsConfig{
 		repoURL:      repoUrl,
-		path:         "./",
+		path:         "./image-repository",
 		modifyKsSpec: modifyKsSpec,
 	})
 	g.Expect(err).ToNot(HaveOccurred())
@@ -110,7 +110,7 @@ spec:
 			return false
 		}
 		return true
-	}, 60*time.Second, 5*time.Second)
+	}, 60*time.Second, 5*time.Second).Should(BeTrue())
 
 	imageRepository := reflectorv1beta1.ImageRepository{
 		ObjectMeta: metav1.ObjectMeta{
@@ -118,7 +118,7 @@ spec:
 			Namespace: name,
 		},
 	}
-	_, err = controllerutil.CreateOrUpdate(ctx, cfg.client, &imageRepository, func() error {
+	_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, &imageRepository, func() error {
 		imageRepository.Spec = reflectorv1beta1.ImageRepositorySpec{
 			Image: fmt.Sprintf("%s/container/podinfo", cfg.dockerCred.url),
 			Interval: metav1.Duration{
@@ -135,7 +135,7 @@ spec:
 			Namespace: name,
 		},
 	}
-	_, err = controllerutil.CreateOrUpdate(ctx, cfg.client, &imagePolicy, func() error {
+	_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, &imagePolicy, func() error {
 		imagePolicy.Spec = reflectorv1beta1.ImagePolicySpec{
 			ImageRepositoryRef: meta.NamespacedObjectReference{
 				Name: imageRepository.Name,
@@ -156,7 +156,7 @@ spec:
 			Namespace: name,
 		},
 	}
-	_, err = controllerutil.CreateOrUpdate(ctx, cfg.client, &imageAutomation, func() error {
+	_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, &imageAutomation, func() error {
 		imageAutomation.Spec = automationv1beta1.ImageUpdateAutomationSpec{
 			Interval: metav1.Duration{
 				Duration: 1 * time.Minute,
@@ -178,6 +178,10 @@ spec:
 					},
 				},
 			},
+			Update: &automationv1beta1.UpdateStrategy{
+				Path:     "./image-repository",
+				Strategy: automationv1beta1.UpdateStrategySetters,
+			},
 		}
 		return nil
 	})
@@ -185,12 +189,12 @@ spec:
 
 	// Wait for image repository to be ready
 	g.Eventually(func() bool {
-		_, repoDir, err := getRepository(repoUrl, name, false, cfg.gitPat)
+		client, err := getRepository(ctx, repoUrl, name, cfg.defaultAuthOpts)
 		if err != nil {
 			return false
 		}
 
-		b, err := os.ReadFile(filepath.Join(repoDir, "podinfo.yaml"))
+		b, err := os.ReadFile(filepath.Join(client.Path(), name, "podinfo.yaml"))
 		if err != nil {
 			return false
 		}
@@ -198,5 +202,5 @@ spec:
 			return false
 		}
 		return true
-	}, 120*time.Second, 5*time.Second)
+	}, 120*time.Second, 5*time.Second).Should(BeTrue())
 }

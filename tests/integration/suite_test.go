@@ -22,28 +22,28 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
 	"testing"
 
-	"github.com/fluxcd/test-infra/tftestenv"
 	tfjson "github.com/hashicorp/terraform-json"
-	"go.uber.org/multierr"
+
 	"k8s.io/client-go/kubernetes/scheme"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/fluxcd/pkg/git"
+	"github.com/fluxcd/test-infra/tftestenv"
 )
 
 const (
-	// aksTerraformPath is the path to the folder containing the
+	// azureTerraformPath is the path to the folder containing the
 	// terraform files for azure infra
-	aksTerraformPath = "./terraform/azure"
+	azureTerraformPath = "./terraform/azure"
+
+	// kubeconfigPath is the path of the file containing the kubeconfig
+	kubeconfigPath = "./build/kubeconfig"
 )
 
 var (
 	// cfg is a struct containing different variables needed for the test.
 	cfg *testConfig
-
-	// kubeconfigPath is the path of the file containing the kubeconfig
-	kubeconfigPath string
 
 	// infraOpts are the options for running the terraform environment
 	infraOpts tftestenv.Options
@@ -58,13 +58,13 @@ var (
 
 // testConfig hold different variable that will be needed by the different test functions.
 type testConfig struct {
-	client client.Client
-
 	// authentication info for git repositories
-	gitPat        string
-	gitPrivateKey string
-	gitPublicKey  string
-
+	gitPat              string
+	gitUsername         string
+	gitPrivateKey       string
+	gitPublicKey        string
+	defaultGitTransport git.TransportType
+	defaultAuthOpts     *git.AuthOptions
 	// Generate known host? Use flux cli?
 	knownHosts            string
 	fleetInfraRepository  repoConfig
@@ -153,17 +153,6 @@ func setup(m *testing.M) (exitVal int, err error) {
 		tftestenv.WithCreateKubeconfig(providerCfg.createKubeconfig),
 	}
 
-	tmpDir, err := os.MkdirTemp("", "*-e2e")
-	if err != nil {
-		return 0, err
-	}
-	kubeconfigPath = fmt.Sprintf("%s/kubeconfig", tmpDir)
-	defer func() {
-		if ferr := os.RemoveAll(filepath.Dir(kubeconfigPath)); ferr != nil {
-			err = multierr.Append(fmt.Errorf("could not clean up kubeconfig file: %v", ferr), err)
-		}
-	}()
-
 	// Create terraform infrastructure
 	testEnv, err = tftestenv.New(context.Background(), scheme.Scheme, providerCfg.terraformPath, kubeconfigPath, envOpts...)
 	if err != nil {
@@ -181,7 +170,6 @@ func setup(m *testing.M) (exitVal int, err error) {
 	if err != nil {
 		return 0, err
 	}
-	cfg.client = testEnv.Client
 
 	testRepos, err = providerCfg.registryLogin(ctx, outputs)
 	if err != nil {
@@ -193,13 +181,9 @@ func setup(m *testing.M) (exitVal int, err error) {
 		return 0, err
 	}
 
-	// Install Flux clients for test cluster
-	err = installFlux(ctx, cfg.client, installArgs{
+	err = installFlux(ctx, testEnv.Client, installArgs{
 		kubeconfigPath: kubeconfigPath,
-		repoURL:        cfg.fleetInfraRepository.http,
-		password:       cfg.gitPat,
 		secretData:     cfg.envCredsData,
-		kustomizeYaml:  cfg.kustomizationYaml,
 	})
 	if err != nil {
 		return 1, fmt.Errorf("error installing Flux: %v", err)
@@ -222,7 +206,7 @@ func getProviderConfig(provider string) (*ProviderConfig, error) {
 	switch provider {
 	case "azure":
 		return &ProviderConfig{
-			terraformPath:    aksTerraformPath,
+			terraformPath:    azureTerraformPath,
 			createKubeconfig: createKubeConfigAKS,
 			getTestConfig:    getTestConfigAKS,
 			registryLogin:    registryLoginACR,

@@ -5,6 +5,7 @@
 ### Terraform ###
 # Local .terraform directories
 **/.terraform/*
+build/
 
 # .tfstate files
 *.tfstate

@@ -55,7 +55,7 @@ func TestACRHelmRelease(t *testing.T) {
 
 	// Create HelmRepository and wait for it to sync
 	helmRepository := sourcev1.HelmRepository{ObjectMeta: metav1.ObjectMeta{Name: "acr", Namespace: namespace.Name}}
-	_, err = controllerutil.CreateOrUpdate(ctx, cfg.client, &helmRepository, func() error {
+	_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, &helmRepository, func() error {
 		helmRepository.Spec = sourcev1.HelmRepositorySpec{
 			URL: fmt.Sprintf("oci://%s", repoURL),
 			Interval: metav1.Duration{
@@ -82,5 +82,5 @@ func TestACRHelmRelease(t *testing.T) {
 			return false
 		}
 		return true
-	}, 30*time.Second, 5*time.Second)
+	}, 30*time.Second, 5*time.Second).Should(BeTrue())
 }

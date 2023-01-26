@@ -19,6 +19,7 @@ package test
 import (
 	"context"
 	"fmt"
+	"github.com/fluxcd/pkg/git"
 	"io"
 	"strings"
 	"testing"
@@ -35,7 +36,7 @@ func TestFluxInstallation(t *testing.T) {
 	g := NewWithT(t)
 	ctx := context.TODO()
 	g.Eventually(func() bool {
-		err := verifyGitAndKustomization(ctx, cfg.client, "flux-system", "flux-system")
+		err := verifyGitAndKustomization(ctx, testEnv.Client, "flux-system", "flux-system")
 		if err != nil {
 			return false
 		}
@@ -50,35 +51,47 @@ func TestRepositoryCloning(t *testing.T) {
 
 	g := NewWithT(t)
 
-	tests := []struct {
+	type testStruct struct {
 		name      string
 		refType   string
-		cloneType string
-	}{
-		{
-			name:      "https-feature-branch",
-			refType:   "branch",
-			cloneType: "http",
-		},
-		{
-			name:      "https-v1",
-			refType:   "tag",
-			cloneType: "http",
-		},
+		cloneType git.TransportType
+	}
+
+	tests := []testStruct{
 		{
 			name:      "ssh-feature-branch",
 			refType:   "branch",
-			cloneType: "ssh",
+			cloneType: git.SSH,
 		},
 		{
 			name:      "ssh-v1",
 			refType:   "tag",
-			cloneType: "ssh",
+			cloneType: git.SSH,
 		},
 	}
 
+	// Not all cloud providers have repositories that support authentication with an accessToken
+	// we don't run http tests for these.
+	if cfg.gitPat != "" {
+		httpTests := []testStruct{
+			{
+				name:      "https-feature-branch",
+				refType:   "branch",
+				cloneType: git.HTTP,
+			},
+			{
+				name:      "https-v1",
+				refType:   "tag",
+				cloneType: git.HTTP,
+			},
+		}
+
+		tests = append(tests, httpTests...)
+	}
+
 	t.Log("Creating application sources")
-	repo, _, err := getRepository(cfg.applicationRepository.http, branchName, true, cfg.gitPat)
+	url := getTransportURL(cfg.applicationRepository)
+	client, err := getRepository(ctx, url, defaultBranch, cfg.defaultAuthOpts)
 	g.Expect(err).ToNot(HaveOccurred())
 
 	files := make(map[string]io.Reader)
@@ -89,12 +102,13 @@ func TestRepositoryCloning(t *testing.T) {
       metadata:
         name: foobar
     `
-		name := fmt.Sprintf("./cloning-test/%s/configmap.yaml", tt.name)
+		name := fmt.Sprintf("cloning-test/%s/configmap.yaml", tt.name)
 		files[name] = strings.NewReader(manifest)
 	}
-	err = commitAndPushAll(repo, files, branchName)
+
+	err = commitAndPushAll(ctx, client, files, branchName)
 	g.Expect(err).ToNot(HaveOccurred())
-	err = createTagAndPush(repo, branchName, tagName, cfg.gitPat)
+	err = createTagAndPush(ctx, client.Path(), branchName, tagName, cfg.defaultAuthOpts)
 	g.Expect(err).ToNot(HaveOccurred())
 
 	t.Log("Verifying application-gitops namespaces")
@@ -110,7 +124,7 @@ func TestRepositoryCloning(t *testing.T) {
 			}
 
 			url := cfg.applicationRepository.http
-			if tt.cloneType == "ssh" {
+			if tt.cloneType == git.SSH {
 				url = cfg.applicationRepository.ssh
 			}
 
@@ -123,23 +137,22 @@ func TestRepositoryCloning(t *testing.T) {
 					spec.Reference = ref
 				},
 			})
-
 			g.Expect(err).ToNot(HaveOccurred())
 
 			// Wait for configmap to be deployed
 			g.Eventually(func() bool {
-				err := verifyGitAndKustomization(ctx, cfg.client, tt.name, tt.name)
+				err := verifyGitAndKustomization(ctx, testEnv.Client, tt.name, tt.name)
 				if err != nil {
 					return false
 				}
 				nn := types.NamespacedName{Name: "foobar", Namespace: tt.name}
 				cm := &corev1.ConfigMap{}
-				err = cfg.client.Get(ctx, nn, cm)
+				err = testEnv.Client.Get(ctx, nn, cm)
 				if err != nil {
 					return false
 				}
 				return true
-			}, 120*time.Second, 5*time.Second)
+			}, 120*time.Second, 5*time.Second).Should(BeTrue())
 		})
 	}
 }

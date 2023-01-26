@@ -19,6 +19,7 @@ package test
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/fluxcd/test-infra/tftestenv"
 	tfjson "github.com/hashicorp/terraform-json"
@@ -68,12 +69,24 @@ patchesStrategicMerge:
           env:
           - name: AZURE_AUTH_METHOD
             value: msi
+patches:
+- target:
+    version: v1
+    group: apps
+    kind: Deployment
+    name: image-reflector-controller
+    namespace: flux-system
+  patch: |-
+    - op: add
+      path: /spec/template/spec/containers/0/args/-
+      value: --azure-autologin-for-acr
 `
 
 	config := &testConfig{
+		gitUsername:   "git",
 		gitPat:        outputs["shared_pat"].Value.(string),
-		gitPrivateKey: outputs["shared_id_rsa"].Value.(string),
-		gitPublicKey:  outputs["shared_id_rsa_pub"].Value.(string),
+		gitPrivateKey: os.Getenv("AZUREDEVOPS_SSH"),
+		gitPublicKey:  os.Getenv("AZUREDEVOPS_SSH_PUB"),
 		knownHosts:    azureDevOpsKnownHosts,
 		fleetInfraRepository: repoConfig{
 			http: fleetInfraRepository["http"].(string),
@@ -95,6 +108,16 @@ patchesStrategicMerge:
 		},
 		kustomizationYaml: kustomizeYaml,
 	}
+
+	opts, err := authOpts(config.fleetInfraRepository.http, map[string][]byte{
+		"password": []byte(config.gitPat),
+		"username": []byte("git"),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	config.defaultAuthOpts = opts
 
 	return config, nil
 }

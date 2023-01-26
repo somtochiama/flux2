@@ -5,7 +5,7 @@ Azure services are actually working now and in the future.
 
 ## Architecture
 
-The [aks](./terraform/aks) Terraform creates the AKS cluster and related resources to run the tests. It creates:
+The [azure](./terraform/azure) Terraform creates the AKS cluster and related resources to run the tests. It creates:
 - An Azure Container Registry
 - An Azure Kubernetes Cluster
 - Two Azure DevOps repositories
@@ -17,6 +17,11 @@ The [aks](./terraform/aks) Terraform creates the AKS cluster and related resourc
 - Azure CLI, need to be logged in using az login.
 - Docker CLI for registry login.
 - kubectl for applying certain install manifests.
+- An Azure DevOps organization, personal access token and ssh keys for accessing repositories within the organization. The scope required for the personal access token is:
+  - `Project` and Team - read, write and manage access
+  - `Code` - Full
+  - Please take a look at the [terraform provider](https://registry.terraform.io/providers/microsoft/azuredevops/latest/docs/guides/authenticating_using_the_personal_access_token#create-a-personal-access-token)
+    for more explanation.
 
 ## Tests
 
