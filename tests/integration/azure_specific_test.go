@@ -37,7 +37,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1beta2"
-	notiv1beta1 "github.com/fluxcd/notification-controller/api/v1beta1"
+	notiv1beta2 "github.com/fluxcd/notification-controller/api/v1beta2"
 	"github.com/fluxcd/pkg/runtime/events"
 )
 
@@ -93,14 +93,14 @@ metadata:
 		}
 		return nil
 	})
-	provider := notiv1beta1.Provider{
+	provider := notiv1beta2.Provider{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: name,
 		},
 	}
 	_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, &provider, func() error {
-		provider.Spec = notiv1beta1.ProviderSpec{
+		provider.Spec = notiv1beta2.ProviderSpec{
 			Type:    "azureeventhub",
 			Address: repoUrl,
 			SecretRef: &meta.LocalObjectReference{
@@ -110,18 +110,18 @@ metadata:
 		return nil
 	})
 	g.Expect(err).ToNot(HaveOccurred())
-	alert := notiv1beta1.Alert{
+	alert := notiv1beta2.Alert{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: name,
 		},
 	}
 	_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, &alert, func() error {
-		alert.Spec = notiv1beta1.AlertSpec{
+		alert.Spec = notiv1beta2.AlertSpec{
 			ProviderRef: meta.LocalObjectReference{
 				Name: provider.Name,
 			},
-			EventSources: []notiv1beta1.CrossNamespaceObjectReference{
+			EventSources: []notiv1beta2.CrossNamespaceObjectReference{
 				{
 					Kind:      "Kustomization",
 					Name:      name,
@@ -246,14 +246,14 @@ metadata:
 		return nil
 	})
 
-	provider := notiv1beta1.Provider{
+	provider := notiv1beta2.Provider{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "azuredevops",
 			Namespace: name,
 		},
 	}
 	_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, &provider, func() error {
-		provider.Spec = notiv1beta1.ProviderSpec{
+		provider.Spec = notiv1beta2.ProviderSpec{
 			Type:    "azuredevops",
 			Address: repoUrl,
 			SecretRef: &meta.LocalObjectReference{
@@ -264,18 +264,18 @@ metadata:
 	})
 	g.Expect(err).ToNot(HaveOccurred())
 
-	alert := notiv1beta1.Alert{
+	alert := notiv1beta2.Alert{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "azuredevops",
 			Namespace: name,
 		},
 	}
 	_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, &alert, func() error {
-		alert.Spec = notiv1beta1.AlertSpec{
+		alert.Spec = notiv1beta2.AlertSpec{
 			ProviderRef: meta.LocalObjectReference{
 				Name: provider.Name,
 			},
-			EventSources: []notiv1beta1.CrossNamespaceObjectReference{
+			EventSources: []notiv1beta2.CrossNamespaceObjectReference{
 				{
 					Kind:      "Kustomization",
 					Name:      name,

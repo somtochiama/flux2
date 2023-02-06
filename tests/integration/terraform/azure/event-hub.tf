@@ -2,7 +2,7 @@ resource "azurerm_eventhub_namespace" "this" {
   name = "ehns-${local.name_suffix}"
   location            = azurerm_resource_group.this.location
   resource_group_name = azurerm_resource_group.this.name
-  sku                 = "Standard"
+  sku                 = "Basic"
   capacity            = 1
 }
 

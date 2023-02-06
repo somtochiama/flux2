@@ -23,16 +23,8 @@ output "application_repository" {
   }
 }
 
-output "flux_azure_sp" {
-  value = {
-    tenant_id = data.azurerm_client_config.current.tenant_id
-    client_id = azurerm_kubernetes_cluster.this.kubelet_identity[0].client_id
-  }
-  sensitive = true
-}
-
-output msi_client_id {
-  value = azurerm_kubernetes_cluster.this.kubelet_identity[0].object_id
+output aks_client_id {
+  value = azurerm_kubernetes_cluster.this.kubelet_identity[0].client_id
 }
 
 output "event_hub_sas" {
@@ -47,8 +39,5 @@ output "sops_id" {
 output "acr" {
   value = {
     url = azurerm_container_registry.this.login_server
-    username = azuread_service_principal.flux.application_id
-    password = azuread_service_principal_password.flux.value
   }
-  sensitive = true
 }

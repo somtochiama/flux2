@@ -40,8 +40,6 @@ func createKubeConfigAKS(ctx context.Context, state map[string]*tfjson.StateOutp
 }
 
 func getTestConfigAKS(ctx context.Context, outputs map[string]*tfjson.StateOutput) (*testConfig, error) {
-	fluxAzureSp := outputs["flux_azure_sp"].Value.(map[string]interface{})
-
 	fleetInfraRepository := outputs["fleet_infra_repository"].Value.(map[string]interface{})
 	applicationRepository := outputs["application_repository"].Value.(map[string]interface{})
 
@@ -97,14 +95,12 @@ patches:
 			ssh:  applicationRepository["ssh"].(string),
 		},
 		dockerCred: dockerCred{
-			url:      acr["url"].(string),
-			username: acr["username"].(string),
-			password: acr["password"].(string),
+			url: acr["url"].(string),
 		},
 		notificationURL: eventHubSas,
 		sopsArgs:        fmt.Sprintf("--azure-kv %s", sharedSopsId),
 		sopsSecretData: map[string]string{
-			"sops.azure-kv": fmt.Sprintf(`clientId: %s`, fluxAzureSp["client_id"].(string)),
+			"sops.azure-kv": fmt.Sprintf(`clientId: %s`, outputs["aks_client_id"].Value.(string)),
 		},
 		kustomizationYaml: kustomizeYaml,
 	}

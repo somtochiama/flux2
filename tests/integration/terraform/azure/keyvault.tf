@@ -13,11 +13,9 @@ resource "azurerm_key_vault_access_policy" "admin" {
 
   key_permissions = [
     "Create",
-    "Decrypt",
-    "Delete",
     "Encrypt",
+    "Delete",
     "Get",
-    "Import",
     "List",
     "Purge",
     "Recover",

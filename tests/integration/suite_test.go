@@ -20,16 +20,21 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	helmv2beta1 "github.com/fluxcd/helm-controller/api/v2beta1"
+	automationv1beta1 "github.com/fluxcd/image-automation-controller/api/v1beta1"
+	reflectorv1beta1 "github.com/fluxcd/image-reflector-controller/api/v1beta1"
+	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1beta2"
+	notiv1beta2 "github.com/fluxcd/notification-controller/api/v1beta2"
+	sourcev1 "github.com/fluxcd/source-controller/api/v1beta2"
+	"k8s.io/client-go/kubernetes/scheme"
 	"log"
 	"os"
 	"testing"
 
-	tfjson "github.com/hashicorp/terraform-json"
-
-	"k8s.io/client-go/kubernetes/scheme"
-
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/test-infra/tftestenv"
+	tfjson "github.com/hashicorp/terraform-json"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 )
 
 const (
@@ -48,7 +53,13 @@ var (
 	// infraOpts are the options for running the terraform environment
 	infraOpts tftestenv.Options
 
-	// testRepos contains a map of
+	// testRepos is a map of registry common name and URL of the test
+	// repositories. This is used as the test cases to run the tests against.
+	// The registry common name need not be the actual registry address but an
+	// identifier to identify the test case without logging any sensitive
+	// account IDs in the subtest names.
+	// For example, map[string]string{"ecr", "xxxxx.dkr.ecr.xxxx.amazonaws.com/foo:v1"}
+	// would result in subtest name TestImageRepositoryScanAWS/ecr.
 	testRepos map[string]string
 
 	// testEnv is the test environment. It contains test infrastructure and
@@ -116,6 +127,15 @@ type ProviderConfig struct {
 	registryLogin registryLoginFunc
 }
 
+func init() {
+	utilruntime.Must(sourcev1.AddToScheme(scheme.Scheme))
+	utilruntime.Must(kustomizev1.AddToScheme(scheme.Scheme))
+	utilruntime.Must(helmv2beta1.AddToScheme(scheme.Scheme))
+	utilruntime.Must(reflectorv1beta1.AddToScheme(scheme.Scheme))
+	utilruntime.Must(automationv1beta1.AddToScheme(scheme.Scheme))
+	utilruntime.Must(notiv1beta2.AddToScheme(scheme.Scheme))
+}
+
 func TestMain(m *testing.M) {
 	infraOpts.Bindflags(flag.CommandLine)
 	flag.Parse()
@@ -172,11 +192,6 @@ func setup(m *testing.M) (exitVal int, err error) {
 	}
 
 	testRepos, err = providerCfg.registryLogin(ctx, outputs)
-	if err != nil {
-		return 0, err
-	}
-
-	err = setupScheme()
 	if err != nil {
 		return 0, err
 	}

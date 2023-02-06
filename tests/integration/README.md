@@ -25,8 +25,8 @@ The [azure](./terraform/azure) Terraform creates the AKS cluster and related res
 
 ## Tests
 
-Each test run is initiated by running `terraform apply` on the aks Terraform, it does this by using the [tftestenv package](https://github.com/fluxcd/test-infra/blob/main/tftestenv/testenv.go) within the `fluxcd/test-infra` repository.
-It then reads the output of the Terraform to get credentials and ssh keys, this means that a lot of the communication with the Azure API is offset to
+Each test run is initiated by running `terraform apply` in the azure Terraform directory, it does this by using the [tftestenv package](https://github.com/fluxcd/test-infra/blob/main/tftestenv/testenv.go) within the `fluxcd/test-infra` repository.
+It then reads the output of the Terraform to get information needed for the tests like the kubernetes client ID, the azure DevOps repository urls, the key vault ID etc. This means that a lot of the communication with the Azure API is offset to
 Terraform instead of requiring it to be implemented in the test.
 
 The following tests are currently implemented:

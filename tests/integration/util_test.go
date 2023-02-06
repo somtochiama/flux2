@@ -31,14 +31,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/crane"
 	gossh "golang.org/x/crypto/ssh"
 	corev1 "k8s.io/api/core/v1"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
@@ -49,11 +47,7 @@ import (
 	"github.com/fluxcd/go-git/v5/plumbing/transport"
 	"github.com/fluxcd/go-git/v5/plumbing/transport/http"
 	"github.com/fluxcd/go-git/v5/plumbing/transport/ssh"
-	helmv2beta1 "github.com/fluxcd/helm-controller/api/v2beta1"
-	automationv1beta1 "github.com/fluxcd/image-automation-controller/api/v1beta1"
-	reflectorv1beta1 "github.com/fluxcd/image-reflector-controller/api/v1beta1"
 	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1beta2"
-	notiv1beta1 "github.com/fluxcd/notification-controller/api/v1beta1"
 	"github.com/fluxcd/pkg/apis/meta"
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/ssh/knownhosts"
@@ -62,34 +56,34 @@ import (
 
 const defaultBranch = "main"
 
-func setupScheme() error {
-	err := sourcev1.AddToScheme(scheme.Scheme)
-	if err != nil {
-		return err
-	}
-	err = kustomizev1.AddToScheme(scheme.Scheme)
-	if err != nil {
-		return err
-	}
-	err = helmv2beta1.AddToScheme(scheme.Scheme)
-	if err != nil {
-		return err
-	}
-	err = reflectorv1beta1.AddToScheme(scheme.Scheme)
-	if err != nil {
-		return err
-	}
-	err = automationv1beta1.AddToScheme(scheme.Scheme)
-	if err != nil {
-		return err
-	}
-	err = notiv1beta1.AddToScheme(scheme.Scheme)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
+//func setupScheme() error {
+//	err := sourcev1.AddToScheme(scheme.Scheme)
+//	if err != nil {
+//		return err
+//	}
+//	err = kustomizev1.AddToScheme(scheme.Scheme)
+//	if err != nil {
+//		return err
+//	}
+//	err = helmv2beta1.AddToScheme(scheme.Scheme)
+//	if err != nil {
+//		return err
+//	}
+//	err = reflectorv1beta1.AddToScheme(scheme.Scheme)
+//	if err != nil {
+//		return err
+//	}
+//	err = automationv1beta1.AddToScheme(scheme.Scheme)
+//	if err != nil {
+//		return err
+//	}
+//	err = notiv1beta1.AddToScheme(scheme.Scheme)
+//	if err != nil {
+//		return err
+//	}
+//
+//	return nil
+//}
 
 // fluxConfig contains configuration for installing FLux in a cluster
 type installArgs struct {
@@ -551,14 +545,9 @@ func pushImagesFromURL(repoURL, imgURL string, tags []string) error {
 		return err
 	}
 
-	opts := crane.WithAuth(authn.FromConfig(authn.AuthConfig{
-		Username: cfg.dockerCred.username,
-		Password: cfg.dockerCred.password,
-	}))
-
 	for _, tag := range tags {
 		log.Printf("Pushing '%s' to '%s:%s'\n", imgURL, repoURL, tag)
-		if err := crane.Push(img, fmt.Sprintf("%s:%s", repoURL, tag), opts); err != nil {
+		if err := crane.Push(img, fmt.Sprintf("%s:%s", repoURL, tag)); err != nil {
 			return err
 		}
 	}
