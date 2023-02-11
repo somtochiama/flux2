@@ -42,7 +42,7 @@ func TestImageRepositoryAndAutomation(t *testing.T) {
 	ctx := context.TODO()
 	name := "image-repository"
 
-	fullImageURL, ok := testRepos["podinfo"+oldVersion]
+	fullImageURL, ok := testRepos["podinfo:6.0.0"]
 	if !ok {
 		t.Fatal("no image present for podinfo")
 	}

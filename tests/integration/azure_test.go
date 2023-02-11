@@ -133,18 +133,17 @@ func registryLoginACR(ctx context.Context, output map[string]*tfjson.StateOutput
 	return testRepos, nil
 }
 
-func pushTestImagesACR(ctx context.Context, localImgs map[string]ImgInfo, output map[string]*tfjson.StateOutput) (map[string]string, error) {
+func pushTestImagesACR(ctx context.Context, localImgs map[string]string, output map[string]*tfjson.StateOutput) (map[string]string, error) {
 	registryURL := output["acr_url"].Value.(string)
 	imgRepos := map[string]string{}
-	for name, info := range localImgs {
-		for _, tag := range info.tag {
-			remoteImg, err := tftestenv.RetagAndPush(ctx, registryURL, name, info.image, tag)
-			if err != nil {
-				return nil, err
-			}
-
-			imgRepos[name+tag] = remoteImg
+	for name, localImg := range localImgs {
+		remoteImg := fmt.Sprintf("%s/%s", registryURL, name)
+		err := tftestenv.RetagAndPush(ctx, localImg, remoteImg)
+		if err != nil {
+			return nil, err
 		}
+
+		imgRepos[name] = remoteImg
 	}
 
 	return imgRepos, nil

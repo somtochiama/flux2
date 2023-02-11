@@ -153,7 +153,7 @@ require (
 // Fix for CVE-2021-43565: https://github.com/golang/crypto/commit/5770296d904e90f15f38f77dfc2e43fdf5efc083
 replace golang.org/x/crypto => golang.org/x/crypto v0.0.0-20211215153901-e495a2d5b3d3
 
-replace github.com/fluxcd/test-infra/tftestenv => github.com/somtochiama/test-infra/tftestenv v0.0.0-20230209201614-3942a697c18a
+replace github.com/fluxcd/test-infra/tftestenv => github.com/somtochiama/test-infra/tftestenv v0.0.0-20230211153850-728d58f2c6e4
 
 // This lets us use `go-billy/util.Walk()`, as this function hasn't been released
 // in a tagged version yet:

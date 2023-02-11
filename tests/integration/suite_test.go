@@ -123,7 +123,7 @@ type getTestConfig func(ctx context.Context, output map[string]*tfjson.StateOutp
 // output.
 type registryLoginFunc func(ctx context.Context, output map[string]*tfjson.StateOutput) (map[string]string, error)
 
-type pushTestImages func(ctx context.Context, localImgs map[string]ImgInfo, output map[string]*tfjson.StateOutput) (map[string]string, error)
+type pushTestImages func(ctx context.Context, localImgs map[string]string, output map[string]*tfjson.StateOutput) (map[string]string, error)
 
 // ProviderConfig contains the test configurations for the different cloud providers
 type ProviderConfig struct {
@@ -133,11 +133,6 @@ type ProviderConfig struct {
 	// registryLogin is used to perform registry login.
 	registryLogin  registryLoginFunc
 	pushTestImages pushTestImages
-}
-
-type ImgInfo struct {
-	image string
-	tag   []string
 }
 
 func init() {
@@ -177,11 +172,9 @@ func setup(m *testing.M) (exitVal int, err error) {
 	// get provider specific configuration
 	providerCfg, err := getProviderConfig(infraOpts.Provider)
 
-	localImgs := map[string]ImgInfo{
-		"podinfo": {
-			image: "ghcr.io/stefanprodan/podinfo",
-			tag:   podinfoTags,
-		},
+	localImgs := map[string]string{
+		"podinfo:6.0.0": "ghcr.io/stefanprodan/podinfo:6.0.0",
+		"podinfo:6.0.1": "ghcr.io/stefanprodan/podinfo:6.0.1",
 	}
 
 	// Setup Terraform binary and init state
