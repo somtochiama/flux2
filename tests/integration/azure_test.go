@@ -43,7 +43,6 @@ func getTestConfigAKS(ctx context.Context, outputs map[string]*tfjson.StateOutpu
 	fleetInfraRepository := outputs["fleet_infra_repository"].Value.(map[string]interface{})
 	applicationRepository := outputs["application_repository"].Value.(map[string]interface{})
 
-	acr := outputs["acr"].Value.(map[string]interface{})
 	eventHubSas := outputs["event_hub_sas"].Value.(string)
 
 	sharedSopsId := outputs["sops_id"].Value.(string)
@@ -95,7 +94,7 @@ patches:
 			ssh:  applicationRepository["ssh"].(string),
 		},
 		dockerCred: dockerCred{
-			url: acr["url"].(string),
+			url: outputs["acr_url"].Value.(string),
 		},
 		notificationURL: eventHubSas,
 		sopsArgs:        fmt.Sprintf("--azure-kv %s", sharedSopsId),
@@ -125,12 +124,28 @@ func registryLoginACR(ctx context.Context, output map[string]*tfjson.StateOutput
 	// new image with a new repository name.
 	testRepos := map[string]string{}
 
-	acr := output["acr"].Value.(map[string]interface{})
-	registryURL := acr["url"].(string)
+	registryURL := output["acr_url"].Value.(string)
 	if err := tftestenv.RegistryLoginACR(ctx, registryURL); err != nil {
 		return nil, err
 	}
 	testRepos["acr"] = registryURL
 
 	return testRepos, nil
+}
+
+func pushTestImagesACR(ctx context.Context, localImgs map[string]ImgInfo, output map[string]*tfjson.StateOutput) (map[string]string, error) {
+	registryURL := output["acr_url"].Value.(string)
+	imgRepos := map[string]string{}
+	for name, info := range localImgs {
+		for _, tag := range info.tag {
+			remoteImg, err := tftestenv.RetagAndPush(ctx, registryURL, name, info.image, tag)
+			if err != nil {
+				return nil, err
+			}
+
+			imgRepos[name+tag] = remoteImg
+		}
+	}
+
+	return imgRepos, nil
 }

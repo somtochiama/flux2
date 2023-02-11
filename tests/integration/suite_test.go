@@ -62,6 +62,11 @@ var (
 	// would result in subtest name TestImageRepositoryScanAWS/ecr.
 	testRepos map[string]string
 
+	// versions to tag and push for the podinfo image
+	oldVersion  = "6.0.0"
+	newVersion  = "6.0.1"
+	podinfoTags = []string{oldVersion, newVersion}
+
 	// testEnv is the test environment. It contains test infrastructure and
 	// kubernetes client of the created cluster.
 	testEnv *tftestenv.Environment
@@ -118,13 +123,21 @@ type getTestConfig func(ctx context.Context, output map[string]*tfjson.StateOutp
 // output.
 type registryLoginFunc func(ctx context.Context, output map[string]*tfjson.StateOutput) (map[string]string, error)
 
+type pushTestImages func(ctx context.Context, localImgs map[string]ImgInfo, output map[string]*tfjson.StateOutput) (map[string]string, error)
+
 // ProviderConfig contains the test configurations for the different cloud providers
 type ProviderConfig struct {
 	terraformPath    string
 	createKubeconfig tftestenv.CreateKubeconfig
 	getTestConfig    getTestConfig
 	// registryLogin is used to perform registry login.
-	registryLogin registryLoginFunc
+	registryLogin  registryLoginFunc
+	pushTestImages pushTestImages
+}
+
+type ImgInfo struct {
+	image string
+	tag   []string
 }
 
 func init() {
@@ -164,6 +177,13 @@ func setup(m *testing.M) (exitVal int, err error) {
 	// get provider specific configuration
 	providerCfg, err := getProviderConfig(infraOpts.Provider)
 
+	localImgs := map[string]ImgInfo{
+		"podinfo": {
+			image: "ghcr.io/stefanprodan/podinfo",
+			tag:   podinfoTags,
+		},
+	}
+
 	// Setup Terraform binary and init state
 	log.Printf("Setting up %s e2e test infrastructure", infraOpts.Provider)
 	envOpts := []tftestenv.EnvironmentOption{
@@ -191,7 +211,12 @@ func setup(m *testing.M) (exitVal int, err error) {
 		return 0, err
 	}
 
-	testRepos, err = providerCfg.registryLogin(ctx, outputs)
+	_, err = providerCfg.registryLogin(ctx, outputs)
+	if err != nil {
+		return 0, err
+	}
+
+	testRepos, err = providerCfg.pushTestImages(ctx, localImgs, outputs)
 	if err != nil {
 		return 0, err
 	}
@@ -203,8 +228,6 @@ func setup(m *testing.M) (exitVal int, err error) {
 	if err != nil {
 		return 1, fmt.Errorf("error installing Flux: %v", err)
 	}
-
-	// push images here
 
 	// Run tests
 	log.Println("Running e2e tests")
@@ -225,6 +248,7 @@ func getProviderConfig(provider string) (*ProviderConfig, error) {
 			createKubeconfig: createKubeConfigAKS,
 			getTestConfig:    getTestConfigAKS,
 			registryLogin:    registryLoginACR,
+			pushTestImages:   pushTestImagesACR,
 		}, nil
 	default:
 		return nil, fmt.Errorf("provider '%s' is not supported", provider)

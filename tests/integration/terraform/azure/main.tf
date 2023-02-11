@@ -37,13 +37,5 @@ resource "random_pet" "suffix" {
 locals {
   azure_devops_org = var.azure_devops_org
   name_suffix = "e2e-${random_pet.suffix.id}"
-}
-
-resource "azurerm_resource_group" "this" {
-  name     = "rg-${local.name_suffix}"
-  location = "West Europe"
-
-  tags = {
-    environment = "e2e"
-  }
+  resource_group_location = "eastus"
 }

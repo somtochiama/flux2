@@ -56,35 +56,6 @@ import (
 
 const defaultBranch = "main"
 
-//func setupScheme() error {
-//	err := sourcev1.AddToScheme(scheme.Scheme)
-//	if err != nil {
-//		return err
-//	}
-//	err = kustomizev1.AddToScheme(scheme.Scheme)
-//	if err != nil {
-//		return err
-//	}
-//	err = helmv2beta1.AddToScheme(scheme.Scheme)
-//	if err != nil {
-//		return err
-//	}
-//	err = reflectorv1beta1.AddToScheme(scheme.Scheme)
-//	if err != nil {
-//		return err
-//	}
-//	err = automationv1beta1.AddToScheme(scheme.Scheme)
-//	if err != nil {
-//		return err
-//	}
-//	err = notiv1beta1.AddToScheme(scheme.Scheme)
-//	if err != nil {
-//		return err
-//	}
-//
-//	return nil
-//}
-
 // fluxConfig contains configuration for installing FLux in a cluster
 type installArgs struct {
 	kubeconfigPath string
@@ -541,6 +512,7 @@ func runCommand(ctx context.Context, timeout time.Duration, dir, command string)
 
 func pushImagesFromURL(repoURL, imgURL string, tags []string) error {
 	img, err := crane.Pull(imgURL)
+	//crane.Tag()
 	if err != nil {
 		return err
 	}

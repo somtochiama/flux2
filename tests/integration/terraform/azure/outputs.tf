@@ -1,6 +1,6 @@
 output "kubeconfig" {
   description = "kubeconfig of the created AKS cluster"
-  value       = azurerm_kubernetes_cluster.this.kube_config_raw
+  value       = module.aks.kubeconfig
   sensitive   = true
 }
 
@@ -24,7 +24,7 @@ output "application_repository" {
 }
 
 output aks_client_id {
-  value = azurerm_kubernetes_cluster.this.kubelet_identity[0].client_id
+  value = module.aks.kubelet_client_id
 }
 
 output "event_hub_sas" {
@@ -36,8 +36,6 @@ output "sops_id" {
   value = azurerm_key_vault_key.sops.id
 }
 
-output "acr" {
-  value = {
-    url = azurerm_container_registry.this.login_server
-  }
+output "acr_url" {
+    value = module.acr.registry_url
 }

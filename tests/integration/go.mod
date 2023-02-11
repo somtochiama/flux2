@@ -80,7 +80,7 @@ require (
 	github.com/docker/docker-credential-helpers v0.6.4 // indirect
 	github.com/emicklei/go-restful/v3 v3.9.0 // indirect
 	github.com/fluxcd/pkg/apis/acl v0.1.0 // indirect
-	github.com/fluxcd/pkg/apis/kustomize v0.5.0
+	github.com/fluxcd/pkg/apis/kustomize v0.5.0 // indirect
 	github.com/fluxcd/test-infra/tftestenv v0.0.0-20220726140458-65e1a901cbb9
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/go-logr/logr v1.2.3 // indirect
@@ -153,7 +153,7 @@ require (
 // Fix for CVE-2021-43565: https://github.com/golang/crypto/commit/5770296d904e90f15f38f77dfc2e43fdf5efc083
 replace golang.org/x/crypto => golang.org/x/crypto v0.0.0-20211215153901-e495a2d5b3d3
 
-replace github.com/fluxcd/test-infra/tftestenv => github.com/somtochiama/test-infra/tftestenv v0.0.0-20220902234215-0a583c0d3b76
+replace github.com/fluxcd/test-infra/tftestenv => github.com/somtochiama/test-infra/tftestenv v0.0.0-20230209201614-3942a697c18a
 
 // This lets us use `go-billy/util.Walk()`, as this function hasn't been released
 // in a tagged version yet:

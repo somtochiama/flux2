@@ -33,8 +33,6 @@ import (
 
 	automationv1beta1 "github.com/fluxcd/image-automation-controller/api/v1beta1"
 	reflectorv1beta1 "github.com/fluxcd/image-reflector-controller/api/v1beta1"
-	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1beta2"
-	"github.com/fluxcd/pkg/apis/kustomize"
 	"github.com/fluxcd/pkg/apis/meta"
 	sourcev1 "github.com/fluxcd/source-controller/api/v1beta2"
 )
@@ -43,13 +41,15 @@ func TestImageRepositoryAndAutomation(t *testing.T) {
 	g := NewWithT(t)
 	ctx := context.TODO()
 	name := "image-repository"
-	oldVersion := "1.0.0"
-	newVersion := "1.0.1"
 
-	imageURL := fmt.Sprintf("%s/container/podinfo", cfg.dockerCred.url)
-	// push the podinfo image to the container registry
-	err := pushImagesFromURL(imageURL, "ghcr.io/stefanprodan/podinfo", []string{oldVersion, newVersion})
-	g.Expect(err).ToNot(HaveOccurred())
+	fullImageURL, ok := testRepos["podinfo"+oldVersion]
+	if !ok {
+		t.Fatal("no image present for podinfo")
+	}
+
+	fmt.Println(fullImageURL)
+	imgArr := strings.Split(fullImageURL, ":")
+	imageURL := imgArr[0]
 
 	manifest := fmt.Sprintf(`apiVersion: apps/v1
 kind: Deployment
@@ -67,7 +67,7 @@ spec:
     spec:
       containers:
       - name: podinfod
-        image: stefanprodan/container/podinfo:1.0.0 # {"$imagepolicy": "%s:podinfo"}
+        image: %s # {"$imagepolicy": "%s:podinfo"}
         readinessProbe:
           exec:
             command:
@@ -77,7 +77,7 @@ spec:
             - localhost:9898/readyz
           initialDelaySeconds: 5
           timeoutSeconds: 5
-`, name)
+`, fullImageURL, name)
 
 	repoUrl := getTransportURL(cfg.applicationRepository)
 	client, err := getRepository(ctx, repoUrl, defaultBranch, cfg.defaultAuthOpts)
@@ -88,19 +88,9 @@ spec:
 	err = commitAndPushAll(ctx, client, files, name)
 	g.Expect(err).ToNot(HaveOccurred())
 
-	modifyKsSpec := func(spec *kustomizev1.KustomizationSpec) {
-		spec.Images = []kustomize.Image{
-			{
-				Name:    "stefanprodan/container/podinfo",
-				NewName: imageURL,
-			},
-		}
-	}
-
 	err = setupNamespace(ctx, name, nsConfig{
-		repoURL:      repoUrl,
-		path:         "./image-repository",
-		modifyKsSpec: modifyKsSpec,
+		repoURL: repoUrl,
+		path:    "./image-repository",
 	})
 	g.Expect(err).ToNot(HaveOccurred())
 
@@ -120,7 +110,7 @@ spec:
 	}
 	_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, &imageRepository, func() error {
 		imageRepository.Spec = reflectorv1beta1.ImageRepositorySpec{
-			Image: fmt.Sprintf("%s/container/podinfo", cfg.dockerCred.url),
+			Image: imageURL,
 			Interval: metav1.Duration{
 				Duration: 1 * time.Minute,
 			},
@@ -142,7 +132,7 @@ spec:
 			},
 			Policy: reflectorv1beta1.ImagePolicyChoice{
 				SemVer: &reflectorv1beta1.SemVerPolicy{
-					Range: "1.0.x",
+					Range: "6.0.x",
 				},
 			},
 		}
