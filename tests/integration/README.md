@@ -1,8 +1,9 @@
-## Azure E2E
+## E2E Tests
 
-E2E tests for Azure are needed to mitigate introduction of new bugs in dependencies like libgit2. The goal is to verify that Flux integration with
-Azure services are actually working now and in the future.
+The goal is to verify that Flux integration with cloud providers are actually working now and in the future.
+Currently, we only have tests for Azure.
 
+## Azure
 ## Architecture
 
 The [azure](./terraform/azure) Terraform creates the AKS cluster and related resources to run the tests. It creates:
@@ -45,4 +46,3 @@ The following tests are currently implemented:
 1. Copy `.env.sample` to `.env` and add the values for the different variables which includes.  - your Azure DevOps org, personal access tokens and ssh keys for accessing repositories on Azure DevOps org.
 Run  `source .env`.
 2. Run `make test-azure`
-

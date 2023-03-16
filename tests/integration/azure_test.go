@@ -79,11 +79,23 @@ patches:
       value: --azure-autologin-for-acr
 `
 
+	privateKeyFile := os.Getenv("AZUREDEVOPS_SSH")
+	privateKeyData, err := os.ReadFile(privateKeyFile)
+	if err != nil {
+		return nil, fmt.Errorf("error getting azure devops private key, %s: %w", privateKeyFile, err)
+	}
+
+	pubKeyFile := os.Getenv("AZUREDEVOPS_SSH_PUB")
+	pubKeyData, err := os.ReadFile(pubKeyFile)
+	if err != nil {
+		return nil, fmt.Errorf("error getting azure devops private key, %s, %w", pubKeyFile, err)
+	}
+
 	config := &testConfig{
 		gitUsername:   "git",
 		gitPat:        outputs["shared_pat"].Value.(string),
-		gitPrivateKey: os.Getenv("AZUREDEVOPS_SSH"),
-		gitPublicKey:  os.Getenv("AZUREDEVOPS_SSH_PUB"),
+		gitPrivateKey: string(privateKeyData),
+		gitPublicKey:  string(pubKeyData),
 		knownHosts:    azureDevOpsKnownHosts,
 		fleetInfraRepository: repoConfig{
 			http: fleetInfraRepository["http"].(string),
