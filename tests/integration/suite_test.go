@@ -87,7 +87,7 @@ type testConfig struct {
 	fleetInfraRepository  repoConfig
 	applicationRepository repoConfig
 
-	dockerCred      dockerCred
+	registryURL     string
 	notificationURL string
 
 	// cloud provider dependent argument to pass to the sops cli
@@ -106,13 +106,6 @@ type testConfig struct {
 type repoConfig struct {
 	http string
 	ssh  string
-}
-
-// dockerCred contains credentials for the container repository
-type dockerCred struct {
-	url      string
-	username string
-	password string
 }
 
 // getTestConfig gets the test configuration that contains different variables for running the tests

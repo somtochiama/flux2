@@ -50,7 +50,7 @@ func TestACRHelmRelease(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 	defer testEnv.Client.Delete(ctx, &namespace)
 
-	repoURL := fmt.Sprintf("%s/charts/podinfo", cfg.dockerCred.url)
+	repoURL := fmt.Sprintf("%s/charts/podinfo", cfg.registryURL)
 	err = pushImagesFromURL(repoURL, "ghcr.io/stefanprodan/charts/podinfo:6.2.0", []string{"v0.0.1"})
 	g.Expect(err).ToNot(HaveOccurred())
 

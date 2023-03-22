@@ -73,6 +73,9 @@ func installFlux(ctx context.Context, kubeClient client.Client, conf installArgs
 	_, err := controllerutil.CreateOrUpdate(ctx, kubeClient, &namespace, func() error {
 		return nil
 	})
+	if err != nil {
+		return err
+	}
 
 	// Create additional secrets that are needed for flux to run correctly
 	if conf.secretData != nil {
@@ -283,6 +286,15 @@ func setupNamespace(ctx context.Context, name string, opts nsConfig) error {
 }
 
 func deleteNamespace(ctx context.Context, name string) error {
+	namespace := corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+	}
+	if err := testEnv.Client.Delete(ctx, &namespace); err != nil {
+		return err
+	}
+
 	source := &sourcev1.GitRepository{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: name}}
 	if err := testEnv.Client.Delete(ctx, source); err != nil {
 		return err

@@ -80,6 +80,16 @@ metadata:
 	files["configmap.yaml"] = strings.NewReader(manifest)
 	err = commitAndPushAll(ctx, client, files, name)
 	g.Expect(err).ToNot(HaveOccurred())
+
+	namespace := corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+	}
+	g.Expect(controllerutil.CreateOrUpdate(ctx, testEnv.Client, &namespace, func() error {
+		return nil
+	})).To(Succeed())
+
 	secret := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -138,6 +148,7 @@ metadata:
 	defer testEnv.Client.Delete(ctx, &alert)
 
 	modifyKsSpec := func(spec *kustomizev1.KustomizationSpec) {
+		spec.Interval = metav1.Duration{Duration: 30 * time.Second}
 		spec.HealthChecks = []meta.NamespacedObjectKindReference{
 			{
 				APIVersion: "v1",
@@ -147,13 +158,13 @@ metadata:
 			},
 		}
 	}
-	err = setupNamespace(ctx, name, nsConfig{
+	g.Expect(setupNamespace(ctx, name, nsConfig{
 		repoURL:      repoUrl,
 		path:         "./",
 		modifyKsSpec: modifyKsSpec,
-	})
-	g.Expect(err).ToNot(HaveOccurred())
+	})).To(Succeed())
 	defer deleteNamespace(ctx, name)
+
 	g.Eventually(func() bool {
 		err := verifyGitAndKustomization(ctx, testEnv.Client, name, name)
 		if err != nil {
@@ -232,6 +243,7 @@ metadata:
 	})
 	g.Expect(err).ToNot(HaveOccurred())
 	defer deleteNamespace(ctx, name)
+
 	g.Eventually(func() bool {
 		err := verifyGitAndKustomization(ctx, testEnv.Client, name, name)
 		if err != nil {
@@ -252,7 +264,7 @@ metadata:
 		}
 		return nil
 	})
-	defer testEnv.Delete(ctx, &secret)
+	defer testEnv.Client.Delete(ctx, &secret)
 
 	provider := notiv1beta2.Provider{
 		ObjectMeta: metav1.ObjectMeta{

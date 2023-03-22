@@ -51,3 +51,39 @@ personal access tokens and ssh keys for accessing repositories on Azure DevOps o
 this is where the Makefile copies the binary for the tests from. If you have it in a different location, you can set it
 with the `FLUX_BINARY` variable
 3. Run `make test-azure`, setting the location of the flux binary with `FLUX_BINARY` variable
+
+
+In the above, the test created a build directory build/ and the flux cli binary is copied build/flux. It would be used
+to bootstrap Flux on the cluster. You can configure the location of the Flux CLI binary by setting the FLUX_BINARY variable. 
+We also pull two version of `ghcr.io/stefanprodan/podinfo` image. These images are pushed to the Azure Container Registry
+and used to test `ImageRepository` and `ImageUpdateAutomation`.
+
+
+**IMPORTANT:** In case the terraform infrastructure results in a bad state, maybe due to a crash during the apply, 
+the whole infrastructure can be destroyed by running terraform destroy in terraform/<provider> directory.
+
+
+## Debugging the tests
+
+For debugging environment provisioning, enable verbose output with `-verbose` test flag.
+
+```sh
+make test-azure GO_TEST_ARGS="-verbose"
+```
+
+The test environment is destroyed at the end by default. Run the tests with -retain flag to retain the created test infrastructure.
+
+```sh
+make test-azure GO_TEST_ARGS="-retain"
+```
+The tests require the infrastructure state to be clean. For re-running the tests with a retained infrastructure, set -existing flag.
+
+```sh
+make test-azure GO_TEST_ARGS="-retain -existing"
+```
+
+To delete an existing infrastructure created with -retain flag:
+
+```sh
+make test-azure GO_TEST_ARGS="-existing"
+```

@@ -111,9 +111,7 @@ patches:
 			http: applicationRepository["http"].(string),
 			ssh:  applicationRepository["ssh"].(string),
 		},
-		dockerCred: dockerCred{
-			url: outputs["acr_url"].Value.(string),
-		},
+		registryURL:     outputs["acr_url"].Value.(string),
 		notificationURL: eventHubSas,
 		sopsArgs:        fmt.Sprintf("--azure-kv %s", sharedSopsId),
 		sopsSecretData: map[string]string{
