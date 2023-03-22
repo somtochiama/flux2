@@ -92,6 +92,8 @@ metadata:
 		}
 		return nil
 	})
+	defer testEnv.Client.Delete(ctx, &secret)
+
 	provider := notiv1beta2.Provider{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -109,6 +111,8 @@ metadata:
 		return nil
 	})
 	g.Expect(err).ToNot(HaveOccurred())
+	defer testEnv.Client(ctx, &provider)
+
 	alert := notiv1beta2.Alert{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -131,6 +135,8 @@ metadata:
 		return nil
 	})
 	g.Expect(err).ToNot(HaveOccurred())
+	defer testEnv.Client.Delete(ctx, &alert)
+
 	modifyKsSpec := func(spec *kustomizev1.KustomizationSpec) {
 		spec.HealthChecks = []meta.NamespacedObjectKindReference{
 			{
@@ -147,6 +153,7 @@ metadata:
 		modifyKsSpec: modifyKsSpec,
 	})
 	g.Expect(err).ToNot(HaveOccurred())
+	defer deleteNamespace(ctx, name)
 	g.Eventually(func() bool {
 		err := verifyGitAndKustomization(ctx, testEnv.Client, name, name)
 		if err != nil {
