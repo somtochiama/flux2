@@ -225,10 +225,10 @@ func setup(m *testing.M) (exitVal int, err error) {
 	// Run tests
 	log.Println("Running e2e tests")
 	result := m.Run()
-
-	if err := uninstallFlux(ctx); err != nil {
-		log.Printf("Failed to uninstall: %v", err)
-	}
+	//
+	//if err := uninstallFlux(ctx); err != nil {
+	//	log.Printf("Failed to uninstall: %v", err)
+	//}
 
 	return result, nil
 }

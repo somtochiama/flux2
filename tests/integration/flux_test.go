@@ -21,15 +21,14 @@ import (
 	"fmt"
 	"github.com/fluxcd/pkg/git"
 	"io"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"strings"
 	"testing"
 	"time"
 
-	. "github.com/onsi/gomega"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
-
 	sourcev1 "github.com/fluxcd/source-controller/api/v1beta2"
+	. "github.com/onsi/gomega"
 )
 
 func TestFluxInstallation(t *testing.T) {
@@ -150,16 +149,23 @@ func TestRepositoryCloning(t *testing.T) {
 			g.Eventually(func() bool {
 				err := verifyGitAndKustomization(ctx, testEnv.Client, tt.name, tt.name)
 				if err != nil {
+					fmt.Println(err)
 					return false
 				}
+				return true
+			}, 120*time.Second, 5*time.Second).Should(BeTrue())
+
+			g.Eventually(func() bool {
 				nn := types.NamespacedName{Name: "foobar", Namespace: tt.name}
 				cm := &corev1.ConfigMap{}
 				err = testEnv.Client.Get(ctx, nn, cm)
 				if err != nil {
 					return false
 				}
+
 				return true
 			}, 120*time.Second, 5*time.Second).Should(BeTrue())
+
 		})
 	}
 }
