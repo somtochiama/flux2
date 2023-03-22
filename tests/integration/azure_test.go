@@ -79,16 +79,22 @@ patches:
       value: --azure-autologin-for-acr
 `
 
-	privateKeyFile := os.Getenv("AZUREDEVOPS_SSH")
+	privateKeyFile, ok := os.LookupEnv("AZUREDEVOPS_SSH")
+	if !ok {
+		return nil, fmt.Errorf("AZUREDEVOPS_SSH env variable isn't set")
+	}
 	privateKeyData, err := os.ReadFile(privateKeyFile)
 	if err != nil {
-		return nil, fmt.Errorf("error getting azure devops private key, %s: %w", privateKeyFile, err)
+		return nil, fmt.Errorf("error getting azure devops private key, '%s': %w", privateKeyFile, err)
 	}
 
-	pubKeyFile := os.Getenv("AZUREDEVOPS_SSH_PUB")
+	pubKeyFile, ok := os.LookupEnv("AZUREDEVOPS_SSH_PUB")
+	if !ok {
+		return nil, fmt.Errorf("AZUREDEVOPS_SSH_PUB env variable isn't set")
+	}
 	pubKeyData, err := os.ReadFile(pubKeyFile)
 	if err != nil {
-		return nil, fmt.Errorf("error getting azure devops private key, %s, %w", pubKeyFile, err)
+		return nil, fmt.Errorf("error getting ssh pubkey '%s', %w", pubKeyFile, err)
 	}
 
 	config := &testConfig{

@@ -193,6 +193,12 @@ func setup(m *testing.M) (exitVal int, err error) {
 		return 0, err
 	}
 
+	defer func() {
+		if err := testEnv.Stop(ctx); err != nil {
+			log.Printf("Failed to stop environment: %v", err)
+		}
+	}()
+
 	// get terrraform infrastructure
 	outputs, err := testEnv.StateOutput(context.Background())
 	if err != nil {
@@ -229,10 +235,6 @@ func setup(m *testing.M) (exitVal int, err error) {
 
 	if err := uninstallFlux(ctx); err != nil {
 		log.Printf("Failed to uninstall: %v", err)
-	}
-	
-	if err := testEnv.Stop(ctx); err != nil {
-		log.Printf("Failed to stop environment: %v", err)
 	}
 
 	return result, nil

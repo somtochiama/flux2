@@ -138,14 +138,13 @@ func TestRepositoryCloning(t *testing.T) {
 					spec.Reference = ref
 				},
 			})
+			g.Expect(err).ToNot(HaveOccurred())
 			t.Cleanup(func() {
 				err := deleteNamespace(ctx, tt.name)
 				if err != nil {
 					log.Printf("failed to delete resources in '%s' namespace", tt.name)
 				}
 			})
-
-			g.Expect(err).ToNot(HaveOccurred())
 
 			// Wait for configmap to be deployed
 			g.Eventually(func() bool {
