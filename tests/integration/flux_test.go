@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"github.com/fluxcd/pkg/git"
 	"io"
-	"log"
 	"strings"
 	"testing"
 	"time"
@@ -115,6 +114,7 @@ func TestRepositoryCloning(t *testing.T) {
 	t.Log("Verifying application-gitops namespaces")
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
 			ref := &sourcev1.GitRepositoryRef{
 				Branch: branchName,
 			}
@@ -139,12 +139,12 @@ func TestRepositoryCloning(t *testing.T) {
 				},
 			})
 			g.Expect(err).ToNot(HaveOccurred())
-			t.Cleanup(func() {
-				err := deleteNamespace(ctx, tt.name)
-				if err != nil {
-					log.Printf("failed to delete resources in '%s' namespace", tt.name)
-				}
-			})
+			//t.Cleanup(func() {
+			//	err := deleteNamespace(ctx, tt.name)
+			//	if err != nil {
+			//		log.Printf("failed to delete resources in '%s' namespace", tt.name)
+			//	}
+			//})
 
 			// Wait for configmap to be deployed
 			g.Eventually(func() bool {

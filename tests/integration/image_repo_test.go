@@ -93,6 +93,7 @@ spec:
 		path:    "./image-repository",
 	})
 	g.Expect(err).ToNot(HaveOccurred())
+	defer deleteNamespace(ctx, name)
 
 	g.Eventually(func() bool {
 		err := verifyGitAndKustomization(ctx, testEnv.Client, name, name)
