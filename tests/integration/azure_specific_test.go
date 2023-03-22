@@ -86,9 +86,10 @@ metadata:
 			Name: name,
 		},
 	}
-	g.Expect(controllerutil.CreateOrUpdate(ctx, testEnv.Client, &namespace, func() error {
+	_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, &namespace, func() error {
 		return nil
-	})).To(Succeed())
+	})
+	g.Expect(err).To(Not(HaveOccurred()))
 
 	secret := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -102,6 +103,7 @@ metadata:
 		}
 		return nil
 	})
+	g.Expect(err).To(Not(HaveOccurred()))
 	defer testEnv.Client.Delete(ctx, &secret)
 
 	provider := notiv1beta2.Provider{
