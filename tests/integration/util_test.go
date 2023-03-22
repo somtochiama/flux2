@@ -163,7 +163,8 @@ func verifyGitAndKustomization(ctx context.Context, kubeClient client.Client, na
 	}
 
 	if apimeta.IsStatusConditionPresentAndEqual(source.Status.Conditions, meta.ReadyCondition, metav1.ConditionTrue) == false {
-		return fmt.Errorf("source condition not ready, %v", source.Status.Conditions)
+		fmt.Println(source.Status)
+		return fmt.Errorf("source condition not ready")
 	}
 	kustomization := &kustomizev1.Kustomization{}
 	err = kubeClient.Get(ctx, nn, kustomization)
