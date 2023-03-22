@@ -105,13 +105,12 @@ jobs:
           echo $PATH
           ls $HOME/.local/bin
           az login --service-principal -u ${ARM_CLIENT_ID} -p ${ARM_CLIENT_SECRET} -t ${ARM_TENANT_ID}
-          make build
-          cp ./bin/flux ./tests/integration/build/flux
           cd ./tests/integration
-          touch ./build/key
-          echo $AZUREDEVOPS_SSH_CONTENTS > build/key
-          export AZUREDEVOPS_SSH=build/key
-          touch ./build/key.pub
-          echo $AZUREDEVOPS_SSH_PUB_CONTENTS > ./build/key.pub
-          export AZUREDEVOPS_SSH=build/key.pub
-          make test-azure
+          mkdir -p ./build/ssh
+          touch ./build/ssh/key
+          echo $AZUREDEVOPS_SSH_CONTENTS > build/ssh/key
+          export AZUREDEVOPS_SSH=build/ssh/key
+          touch ./build/ssh/key.pub
+          echo $AZUREDEVOPS_SSH_PUB_CONTENTS > ./build/ssh/key.pub
+          export AZUREDEVOPS_SSH=build/ssh/key.pub
+          FLUX_BINARY=$HOME/.local/bin/flux make test-azure
