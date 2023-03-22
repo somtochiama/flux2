@@ -48,6 +48,7 @@ func TestACRHelmRelease(t *testing.T) {
 		return nil
 	})
 	g.Expect(err).ToNot(HaveOccurred())
+	defer testEnv.Client(ctx, namespace)
 
 	repoURL := fmt.Sprintf("%s/charts/podinfo", cfg.dockerCred.url)
 	err = pushImagesFromURL(repoURL, "ghcr.io/stefanprodan/charts/podinfo:6.2.0", []string{"v0.0.1"})
@@ -68,6 +69,7 @@ func TestACRHelmRelease(t *testing.T) {
 		return nil
 	})
 	g.Expect(err).ToNot(HaveOccurred())
+	defer testEnv.Client(ctx, &helmRepository)
 
 	g.Eventually(func() bool {
 		obj := &sourcev1.HelmRepository{}

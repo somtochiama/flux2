@@ -98,6 +98,7 @@ jobs:
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
           TF_VAR_azure_devops_org: ${{ secrets.AZUREDEVOPS_ORG }}
           TF_VAR_azuredevops_pat: ${{ secrets.AZUREDEVOPS_PAT }}
+          TF_VAR_location: "southcentralus"
           AZUREDEVOPS_SSH_CONTENTS: ${{ secrets.AZUREDEVOPS_ID_RSA }}
           AZUREDEVOPS_SSH_PUB_CONTENTS: ${{ secrets.AZUREDEVOPS_ID_RSA_PUB }}
         run: |

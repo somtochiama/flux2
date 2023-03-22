@@ -19,6 +19,7 @@ package test
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"io"
 	"os"
@@ -84,6 +85,12 @@ stringData:
 		protocol:     cfg.defaultGitTransport,
 	})
 	g.Expect(err).ToNot(HaveOccurred())
+	t.Cleanup(func() {
+		err := deleteNamespace(ctx, name)
+		if err != nil {
+			log.Printf("failed to delete resources in '%s' namespace", name)
+		}
+	})
 
 	if cfg.sopsSecretData != nil {
 		secret := corev1.Secret{

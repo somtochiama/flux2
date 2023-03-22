@@ -124,18 +124,26 @@ func installFlux(ctx context.Context, kubeClient client.Client, conf installArgs
 		if err != nil {
 			return err
 		}
-		bootstrapArgs = fmt.Sprintf("--private-key-file=%s", f.Name())
+		bootstrapArgs = fmt.Sprintf("--private-key-file=%s  -s", f.Name())
 	} else {
 		bootstrapArgs = fmt.Sprintf("--token-auth --password=%s", cfg.gitPat)
 	}
 
-	bootstrapCmd := fmt.Sprintf("./build/flux bootstrap git  --url=%s %s --kubeconfig=%s --path=clusters/e2e  --components-extra image-reflector-controller,image-automation-controller -s",
+	bootstrapCmd := fmt.Sprintf("./build/flux bootstrap git  --url=%s %s --kubeconfig=%s --path=clusters/e2e  --components-extra image-reflector-controller,image-automation-controller",
 		repoURL, bootstrapArgs, conf.kubeconfigPath)
 
 	if err := runCommand(ctx, 15*time.Minute, "./", bootstrapCmd); err != nil {
 		return err
 	}
 
+	return nil
+}
+
+func uninstallFlux(ctx context.Context) error {
+	uninstallCmd := fmt.Sprintf("./build/flux uninstall --kubeconfig %s", kubeconfigPath)
+	if err := runCommand(ctx, 15*time.Minute, "./", uninstallCmd); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -272,6 +280,16 @@ func setupNamespace(ctx context.Context, name string, opts nsConfig) error {
 		return err
 	}
 	return nil
+}
+
+func deleteNamespace(ctx context.Context, name string) error {
+	source := &sourcev1.GitRepository{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: name}}
+	if err := testEnv.Client.Delete(ctx, source); err != nil {
+		return err
+	}
+
+	kustomization := &kustomizev1.Kustomization{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: name}}
+	return testEnv.Client.Delete(ctx, kustomization)
 }
 
 // getRepository creates a temporary directory and clones the git repository to it.

@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"github.com/fluxcd/pkg/git"
 	"io"
+	"log"
 	"strings"
 	"testing"
 	"time"
@@ -137,6 +138,13 @@ func TestRepositoryCloning(t *testing.T) {
 					spec.Reference = ref
 				},
 			})
+			t.Cleanup(func() {
+				err := deleteNamespace(ctx, tt.name)
+				if err != nil {
+					log.Printf("failed to delete resources in '%s' namespace", tt.name)
+				}
+			})
+
 			g.Expect(err).ToNot(HaveOccurred())
 
 			// Wait for configmap to be deployed

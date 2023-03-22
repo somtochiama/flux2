@@ -118,6 +118,7 @@ spec:
 		return nil
 	})
 	g.Expect(err).ToNot(HaveOccurred())
+	defer testEnv.Client.Delete(ctx, &imageRepository)
 
 	imagePolicy := reflectorv1beta1.ImagePolicy{
 		ObjectMeta: metav1.ObjectMeta{
@@ -139,6 +140,7 @@ spec:
 		return nil
 	})
 	g.Expect(err).ToNot(HaveOccurred())
+	defer testEnv.Client.Delete(ctx, &imagePolicy)
 
 	imageAutomation := automationv1beta1.ImageUpdateAutomation{
 		ObjectMeta: metav1.ObjectMeta{
@@ -176,6 +178,7 @@ spec:
 		return nil
 	})
 	g.Expect(err).ToNot(HaveOccurred())
+	defer testEnv.Client.Delete(ctx, &imageAutomation)
 
 	// Wait for image repository to be ready
 	g.Eventually(func() bool {
