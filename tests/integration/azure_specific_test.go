@@ -80,7 +80,6 @@ metadata:
 	files["configmap.yaml"] = strings.NewReader(manifest)
 	err = commitAndPushAll(ctx, client, files, name)
 	g.Expect(err).ToNot(HaveOccurred())
-	err = setupNamespace(ctx, name, nsConfig{})
 	secret := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -225,6 +224,7 @@ metadata:
 		modifyKsSpec: modifyKsSpec,
 	})
 	g.Expect(err).ToNot(HaveOccurred())
+	defer deleteNamespace(ctx, name)
 	g.Eventually(func() bool {
 		err := verifyGitAndKustomization(ctx, testEnv.Client, name, name)
 		if err != nil {
@@ -245,6 +245,7 @@ metadata:
 		}
 		return nil
 	})
+	defer testEnv.Delete(ctx, &secret)
 
 	provider := notiv1beta2.Provider{
 		ObjectMeta: metav1.ObjectMeta{
@@ -263,6 +264,7 @@ metadata:
 		return nil
 	})
 	g.Expect(err).ToNot(HaveOccurred())
+	defer testEnv.Delete(ctx, &provider)
 
 	alert := notiv1beta2.Alert{
 		ObjectMeta: metav1.ObjectMeta{
@@ -286,6 +288,7 @@ metadata:
 		return nil
 	})
 	g.Expect(err).ToNot(HaveOccurred())
+	defer testEnv.Delete(ctx, &alert)
 
 	url, err := ParseGitAddress(repoUrl)
 	g.Expect(err).ToNot(HaveOccurred())
