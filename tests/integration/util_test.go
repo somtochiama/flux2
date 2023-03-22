@@ -140,7 +140,7 @@ func installFlux(ctx context.Context, kubeClient client.Client, conf installArgs
 }
 
 func uninstallFlux(ctx context.Context) error {
-	uninstallCmd := fmt.Sprintf("./build/flux uninstall --kubeconfig %s", kubeconfigPath)
+	uninstallCmd := fmt.Sprintf("./build/flux uninstall --kubeconfig %s -s", kubeconfigPath)
 	if err := runCommand(ctx, 15*time.Minute, "./", uninstallCmd); err != nil {
 		return err
 	}
