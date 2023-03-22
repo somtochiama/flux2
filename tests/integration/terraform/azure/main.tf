@@ -1,19 +1,16 @@
 terraform {
-
-  required_version = "1.2.8"
-
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "3.20.0"
+      version = ">=3.20.0"
     }
     azuread = {
       source = "hashicorp/azuread"
-      version = "2.28.0"
+      version = ">=2.28.0"
     }
     azuredevops = {
       source = "microsoft/azuredevops"
-      version = "0.2.2"
+      version = ">=0.2.2"
     }
   }
 }
@@ -23,7 +20,7 @@ provider "azurerm" {
 }
 
 provider "azuredevops" {
-  org_service_url = "https://dev.azure.com/${local.azure_devops_org}"
+  org_service_url = "https://dev.azure.com/${var.azure_devops_org}"
   personal_access_token = var.azuredevops_pat
 }
 
@@ -35,7 +32,6 @@ resource "random_pet" "suffix" {
 }
 
 locals {
-  azure_devops_org = var.azure_devops_org
+#  azure_devops_org = var.azure_devops_org
   name_suffix = "e2e-${random_pet.suffix.id}"
-  resource_group_location = "eastus"
 }

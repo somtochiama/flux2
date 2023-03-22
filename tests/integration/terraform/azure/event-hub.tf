@@ -1,6 +1,6 @@
 resource "azurerm_eventhub_namespace" "this" {
   name = "ehns-${local.name_suffix}"
-  location            = local.resource_group_location
+  location            = var.location
   resource_group_name = module.aks.resource_group
   sku                 = "Basic"
   capacity            = 1

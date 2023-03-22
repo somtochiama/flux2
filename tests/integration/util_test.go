@@ -129,15 +129,10 @@ func installFlux(ctx context.Context, kubeClient client.Client, conf installArgs
 		bootstrapArgs = fmt.Sprintf("--token-auth --password=%s", cfg.gitPat)
 	}
 
-	bootstrapCmd := fmt.Sprintf("flux bootstrap git  --url=%s %s --kubeconfig=%s --path=clusters/e2e  --components-extra image-reflector-controller,image-automation-controller",
+	bootstrapCmd := fmt.Sprintf("./build/flux bootstrap git  --url=%s %s --kubeconfig=%s --path=clusters/e2e  --components-extra image-reflector-controller,image-automation-controller -s",
 		repoURL, bootstrapArgs, conf.kubeconfigPath)
 
-	if cfg.defaultGitTransport == git.SSH {
-		// supply prompt
-		bootstrapCmd = fmt.Sprintf("echo y | %s", bootstrapCmd)
-	}
-
-	if err := runCommand(context.Background(), 15*time.Minute, "./", bootstrapCmd); err != nil {
+	if err := runCommand(ctx, 15*time.Minute, "./", bootstrapCmd); err != nil {
 		return err
 	}
 
@@ -448,23 +443,24 @@ func createTagAndPush(ctx context.Context, path, branchName, newTag string, opts
 			if err != nil {
 				return err
 			}
-
-			// delete remote tag
-			po := &extgogit.PushOptions{
-				RemoteName: "origin",
-				Progress:   os.Stdout,
-				RefSpecs:   []gitconfig.RefSpec{gitconfig.RefSpec(":refs/tags/v1")},
-				Auth:       auth,
-				Force:      true,
-			}
-
-			if err := repo.Push(po); err != nil {
-				return err
-			}
 		}
 
 		return nil
 	})
+
+	// Delete remote tag
+	po := &extgogit.PushOptions{
+		RemoteName: "origin",
+		Progress:   os.Stdout,
+		RefSpecs:   []gitconfig.RefSpec{gitconfig.RefSpec(fmt.Sprintf(":refs/tags/%s", newTag))},
+		Auth:       auth,
+		Force:      true,
+	}
+
+	if err := repo.Push(po); err != nil && !errors.Is(err, extgogit.NoErrAlreadyUpToDate) {
+		fmt.Println(err)
+		return err
+	}
 	if err != nil {
 		return err
 	}
@@ -484,7 +480,7 @@ func createTagAndPush(ctx context.Context, path, branchName, newTag string, opts
 		return err
 	}
 
-	po := &extgogit.PushOptions{
+	po = &extgogit.PushOptions{
 		RemoteName: "origin",
 		Progress:   os.Stdout,
 		RefSpecs:   []gitconfig.RefSpec{gitconfig.RefSpec("refs/tags/*:refs/tags/*")},

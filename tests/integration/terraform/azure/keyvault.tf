@@ -1,7 +1,7 @@
 resource "azurerm_key_vault" "this" {
   name                = "kv-credentials-${random_pet.suffix.id}"
   resource_group_name = module.aks.resource_group
-  location            = local.resource_group_location
+  location            = var.location
   tenant_id           = data.azurerm_client_config.current.tenant_id
   sku_name            = "standard"
 }
@@ -19,6 +19,8 @@ resource "azurerm_key_vault_access_policy" "admin" {
     "List",
     "Purge",
     "Recover",
+    "GetRotationPolicy",
+    "SetRotationPolicy"
   ]
   
 }

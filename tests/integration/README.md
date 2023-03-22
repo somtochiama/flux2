@@ -14,12 +14,13 @@ The [azure](./terraform/azure) Terraform creates the AKS cluster and related res
 - An Azure Key Vault
 
 ## Requirements
+
 - Azure account with an active subscription to be able to create AKS and ACR, and permission to assign roles. Role assignment is required for allowing AKS workloads to access ACR.
-- Azure CLI, need to be logged in using az login.
+- Azure CLI, need to be logged in using `az login`.
 - Docker CLI for registry login.
 - kubectl for applying certain install manifests.
 - An Azure DevOps organization, personal access token and ssh keys for accessing repositories within the organization. The scope required for the personal access token is:
-  - `Project` and Team - read, write and manage access
+  - `Project and Team` - read, write and manage access
   - `Code` - Full
   - Please take a look at the [terraform provider](https://registry.terraform.io/providers/microsoft/azuredevops/latest/docs/guides/authenticating_using_the_personal_access_token#create-a-personal-access-token)
     for more explanation.
@@ -32,7 +33,7 @@ Terraform instead of requiring it to be implemented in the test.
 
 The following tests are currently implemented:
 
-- [x] Flux can be successfully installed on AKS using the CLI e.g.:
+- [x] Flux can be successfully installed on AKS using the Flux CLI
 - [x] source-controller can clone Azure DevOps repositories (https+ssh)
 - [x] image-reflector-controller can list tags from Azure Container Registry image repositories
 - [x] kustomize-controller can decrypt secrets using SOPS and Azure Key Vault

@@ -20,21 +20,22 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log"
+	"os"
+	"testing"
+
+	tfjson "github.com/hashicorp/terraform-json"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/kubernetes/scheme"
+
 	helmv2beta1 "github.com/fluxcd/helm-controller/api/v2beta1"
 	automationv1beta1 "github.com/fluxcd/image-automation-controller/api/v1beta1"
 	reflectorv1beta1 "github.com/fluxcd/image-reflector-controller/api/v1beta1"
 	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1beta2"
 	notiv1beta2 "github.com/fluxcd/notification-controller/api/v1beta2"
-	sourcev1 "github.com/fluxcd/source-controller/api/v1beta2"
-	"k8s.io/client-go/kubernetes/scheme"
-	"log"
-	"os"
-	"testing"
-
 	"github.com/fluxcd/pkg/git"
+	sourcev1 "github.com/fluxcd/source-controller/api/v1beta2"
 	"github.com/fluxcd/test-infra/tftestenv"
-	tfjson "github.com/hashicorp/terraform-json"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 )
 
 const (
