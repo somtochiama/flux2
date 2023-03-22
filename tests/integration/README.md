@@ -44,6 +44,10 @@ The following tests are currently implemented:
 
 ## Running these tests locally
 
-1. Copy `.env.sample` to `.env` and add the values for the different variables which includes.  - your Azure DevOps org, personal access tokens and ssh keys for accessing repositories on Azure DevOps org.
-Run  `source .env`.
-2. Run `make test-azure`
+1. Copy `.env.sample` to `.env` and add the values for the different variables which includes - your Azure DevOps org, 
+personal access tokens and ssh keys for accessing repositories on Azure DevOps org. Run  `source .env` to set them.
+2. Ensure that you have the Flux CLI binary that is to be tested built and ready. You can build it by running
+`make build` at the root of this repository. The binary is located at `./bin` directory at the root and by default
+this is where the Makefile copies the binary for the tests from. If you have it in a different location, you can set it
+with the `FLUX_BINARY` variable
+3. Run `make test-azure`, setting the location of the flux binary with `FLUX_BINARY` variable

@@ -111,7 +111,7 @@ metadata:
 		return nil
 	})
 	g.Expect(err).ToNot(HaveOccurred())
-	defer testEnv.Client(ctx, &provider)
+	defer testEnv.Client.Delete(ctx, &provider)
 
 	alert := notiv1beta2.Alert{
 		ObjectMeta: metav1.ObjectMeta{
