@@ -113,4 +113,4 @@ jobs:
           touch ./build/ssh/key.pub
           echo $AZUREDEVOPS_SSH_PUB_CONTENTS | base64 -d > ./build/ssh/key.pub
           export AZUREDEVOPS_SSH_PUB=build/ssh/key.pub
-          FLUX_BINARY=$HOME/.local/bin/flux make test-azure
+          FLUX_BINARY=$HOME/.local/bin/flux GO_TEST_ARGS="-existing -retain" make test-azure

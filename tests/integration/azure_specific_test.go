@@ -125,7 +125,7 @@ metadata:
 		return nil
 	})
 	g.Expect(err).ToNot(HaveOccurred())
-	defer testEnv.Client.Delete(ctx, &provider)
+	//defer testEnv.Client.Delete(ctx, &provider)
 
 	alert := notiv1beta2.Alert{
 		ObjectMeta: metav1.ObjectMeta{
@@ -167,7 +167,7 @@ metadata:
 		path:         "./",
 		modifyKsSpec: modifyKsSpec,
 	})).To(Succeed())
-	defer deleteNamespace(ctx, name)
+	//defer deleteNamespace(ctx, name)
 
 	g.Eventually(func() bool {
 		nn := types.NamespacedName{Name: alert.Name, Namespace: alert.Namespace}
@@ -176,7 +176,8 @@ metadata:
 		if err != nil {
 			return false
 		}
-		if apimeta.IsStatusConditionPresentAndEqual(alert.Status.Conditions, meta.ReadyCondition, metav1.ConditionTrue) == false {
+		if !apimeta.IsStatusConditionPresentAndEqual(alert.Status.Conditions, meta.ReadyCondition, metav1.ConditionTrue) {
+			fmt.Println(alertObj.Status.Conditions)
 			return false
 		}
 		return true
