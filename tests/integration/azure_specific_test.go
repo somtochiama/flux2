@@ -106,7 +106,7 @@ metadata:
 		return nil
 	})
 	g.Expect(err).To(Not(HaveOccurred()))
-	defer testEnv.Client.Delete(ctx, &secret)
+	//defer testEnv.Client.Delete(ctx, &secret)
 
 	provider := notiv1beta2.Provider{
 		ObjectMeta: metav1.ObjectMeta{
@@ -151,6 +151,21 @@ metadata:
 	g.Expect(err).ToNot(HaveOccurred())
 	defer testEnv.Client.Delete(ctx, &alert)
 
+	g.Eventually(func() bool {
+		nn := types.NamespacedName{Name: alert.Name, Namespace: alert.Namespace}
+		alertObj := &notiv1beta2.Alert{}
+		err := testEnv.Client.Get(ctx, nn, alertObj)
+		if err != nil {
+			return false
+		}
+		fmt.Println(alertObj.Status.Conditions)
+		if !apimeta.IsStatusConditionPresentAndEqual(alert.Status.Conditions, meta.ReadyCondition, metav1.ConditionTrue) {
+			fmt.Println(alertObj.Status.Conditions)
+			return false
+		}
+		return true
+	}, 60*time.Second, 5*time.Second).Should(BeTrue())
+
 	modifyKsSpec := func(spec *kustomizev1.KustomizationSpec) {
 		spec.Interval = metav1.Duration{Duration: 30 * time.Second}
 		spec.HealthChecks = []meta.NamespacedObjectKindReference{
@@ -168,20 +183,6 @@ metadata:
 		modifyKsSpec: modifyKsSpec,
 	})).To(Succeed())
 	//defer deleteNamespace(ctx, name)
-
-	g.Eventually(func() bool {
-		nn := types.NamespacedName{Name: alert.Name, Namespace: alert.Namespace}
-		alertObj := &notiv1beta2.Alert{}
-		err := testEnv.Client.Get(ctx, nn, alertObj)
-		if err != nil {
-			return false
-		}
-		if !apimeta.IsStatusConditionPresentAndEqual(alert.Status.Conditions, meta.ReadyCondition, metav1.ConditionTrue) {
-			fmt.Println(alertObj.Status.Conditions)
-			return false
-		}
-		return true
-	})
 
 	g.Eventually(func() bool {
 		err := verifyGitAndKustomization(ctx, testEnv.Client, name, name)
@@ -202,6 +203,7 @@ metadata:
 				return false
 			}
 
+			fmt.Println(event.Message, event.InvolvedObject.Name)
 			if event.InvolvedObject.Kind == kustomizev1.KustomizationKind &&
 				strings.Contains(event.Message, "Health check passed") {
 				return true
@@ -213,7 +215,7 @@ metadata:
 		default:
 			return false
 		}
-	}, 60*time.Second, 1*time.Second).Should(BeTrue())
+	}, 120*time.Second, 1*time.Second).Should(BeTrue())
 	err = listenerHandler.Close(ctx)
 	g.Expect(err).ToNot(HaveOccurred())
 	err = hub.Close(ctx)
