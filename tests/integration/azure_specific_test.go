@@ -170,17 +170,15 @@ metadata:
 	defer deleteNamespace(ctx, name)
 
 	g.Eventually(func() bool {
-		nn := types.NamespacedName{Name: name}
+		nn := types.NamespacedName{Name: alert.Name, Namespace: alert.Namespace}
 		alertObj := &notiv1beta2.Alert{}
 		err := testEnv.Client.Get(ctx, nn, alertObj)
 		if err != nil {
 			return false
 		}
-
 		if apimeta.IsStatusConditionPresentAndEqual(alert.Status.Conditions, meta.ReadyCondition, metav1.ConditionTrue) == false {
 			return false
 		}
-
 		return true
 	})
 
