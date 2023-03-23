@@ -23,6 +23,7 @@ import (
 	"io"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"log"
 	"strings"
 	"testing"
 	"time"
@@ -138,12 +139,12 @@ func TestRepositoryCloning(t *testing.T) {
 				},
 			})
 			g.Expect(err).ToNot(HaveOccurred())
-			//t.Cleanup(func() {
-			//	err := deleteNamespace(ctx, tt.name)
-			//	if err != nil {
-			//		log.Printf("failed to delete resources in '%s' namespace", tt.name)
-			//	}
-			//})
+			t.Cleanup(func() {
+				err := deleteNamespace(ctx, tt.name)
+				if err != nil {
+					log.Printf("failed to delete resources in '%s' namespace", tt.name)
+				}
+			})
 
 			// Wait for configmap to be deployed
 			g.Eventually(func() bool {
