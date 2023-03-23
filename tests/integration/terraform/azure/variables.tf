@@ -7,7 +7,7 @@ variable "azure_devops_org" {
 variable "location" {
     type = string
     description = "Location of the resource group"
-    default = "southcentralus"
+    default = "eastus"
 }
 
 variable "azuredevops_pat" {
