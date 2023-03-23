@@ -21,6 +21,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/types"
 	"strings"
 	"testing"
 	"time"
@@ -104,7 +106,7 @@ metadata:
 		return nil
 	})
 	g.Expect(err).To(Not(HaveOccurred()))
-	defer testEnv.Client.Delete(ctx, &secret)
+	//defer testEnv.Client.Delete(ctx, &secret)
 
 	provider := notiv1beta2.Provider{
 		ObjectMeta: metav1.ObjectMeta{
@@ -123,7 +125,7 @@ metadata:
 		return nil
 	})
 	g.Expect(err).ToNot(HaveOccurred())
-	defer testEnv.Client.Delete(ctx, &provider)
+	//defer testEnv.Client.Delete(ctx, &provider)
 
 	alert := notiv1beta2.Alert{
 		ObjectMeta: metav1.ObjectMeta{
@@ -147,7 +149,7 @@ metadata:
 		return nil
 	})
 	g.Expect(err).ToNot(HaveOccurred())
-	defer testEnv.Client.Delete(ctx, &alert)
+	//defer testEnv.Client.Delete(ctx, &alert)
 
 	modifyKsSpec := func(spec *kustomizev1.KustomizationSpec) {
 		spec.Interval = metav1.Duration{Duration: 30 * time.Second}
@@ -165,7 +167,22 @@ metadata:
 		path:         "./",
 		modifyKsSpec: modifyKsSpec,
 	})).To(Succeed())
-	defer deleteNamespace(ctx, name)
+	//defer deleteNamespace(ctx, name)
+
+	g.Eventually(func() bool {
+		nn := types.NamespacedName{Name: name}
+		alert := &notiv1beta2.Alert{}
+		err := testEnv.Client.Get(ctx, nn, alert)
+		if err != nil {
+			return false
+		}
+
+		if apimeta.IsStatusConditionPresentAndEqual(alert.Status.Conditions, meta.ReadyCondition, metav1.ConditionTrue) == false {
+			return false
+		}
+		
+		return true
+	})
 
 	g.Eventually(func() bool {
 		err := verifyGitAndKustomization(ctx, testEnv.Client, name, name)
