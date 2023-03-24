@@ -39,7 +39,7 @@ import (
 
 	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1beta2"
 	notiv1beta2 "github.com/fluxcd/notification-controller/api/v1beta2"
-	eventv1 "github.com/fluxcd/pkg/apis/event/v1beta1"
+	events "github.com/fluxcd/pkg/apis/event/v1beta1"
 	"github.com/fluxcd/pkg/apis/meta"
 )
 
@@ -183,34 +183,6 @@ metadata:
 	defer deleteNamespace(ctx, name)
 
 	g.Eventually(func() bool {
-		nn := types.NamespacedName{Name: alert.Name, Namespace: alert.Namespace}
-		alertObj := &notiv1beta2.Alert{}
-		err := testEnv.Client.Get(ctx, nn, alertObj)
-		if err != nil {
-			return false
-		}
-		if !apimeta.IsStatusConditionPresentAndEqual(alert.Status.Conditions, meta.ReadyCondition, metav1.ConditionTrue) {
-			fmt.Println(alertObj.Status.Conditions)
-			return false
-		}
-		return true
-	})
-
-	g.Eventually(func() bool {
-		nn := types.NamespacedName{Name: name}
-		alertObj := &notiv1beta2.Alert{}
-		err := testEnv.Client.Get(ctx, nn, alertObj)
-		if err != nil {
-			return false
-		}
-
-		if apimeta.IsStatusConditionPresentAndEqual(alert.Status.Conditions, meta.ReadyCondition, metav1.ConditionTrue) == false {
-			return false
-		}
-
-		return true
-	})
-	g.Eventually(func() bool {
 		err := verifyGitAndKustomization(ctx, testEnv.Client, name, name)
 		if err != nil {
 			return false
@@ -222,7 +194,7 @@ metadata:
 	g.Eventually(func() bool {
 		select {
 		case eventJson := <-c:
-			event := &eventv1.Event{}
+			event := &events.Event{}
 			err := json.Unmarshal([]byte(eventJson), event)
 			if err != nil {
 				t.Logf("the received event type does not match Flux format, error: %v", err)
