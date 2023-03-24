@@ -46,8 +46,6 @@ func TestImageRepositoryAndAutomation(t *testing.T) {
 	if !ok {
 		t.Fatal("no image present for podinfo")
 	}
-
-	fmt.Println(fullImageURL)
 	imgArr := strings.Split(fullImageURL, ":")
 	imageURL := imgArr[0]
 

@@ -52,11 +52,71 @@ this is where the Makefile copies the binary for the tests from. If you have it 
 with the `FLUX_BINARY` variable
 3. Run `make test-azure`, setting the location of the flux binary with `FLUX_BINARY` variable
 
+```console
+$ GO_TEST_ARGS="-existing" make test-azure
+/Library/Developer/CommandLineTools/usr/bin/make test PROVIDER_ARG="-provider azure"
+# These two versions of podinfo are pushed to the cloud registry and used in tests for ImageUpdateAutomation
+mkdir -p build
+cp ../../bin/flux build/flux
+docker pull ghcr.io/stefanprodan/podinfo:6.0.0
+6.0.0: Pulling from stefanprodan/podinfo
+Digest: sha256:e7eeab287181791d36c82c904206a845e30557c3a4a66a8143fa1a15655dae97
+Status: Image is up to date for ghcr.io/stefanprodan/podinfo:6.0.0
+ghcr.io/stefanprodan/podinfo:6.0.0
+docker pull ghcr.io/stefanprodan/podinfo:6.0.1
+6.0.1: Pulling from stefanprodan/podinfo
+Digest: sha256:1169f220a670cf640e45e1a7ac42dc381a441e9d4b7396432cadb75beb5b5d68
+Status: Image is up to date for ghcr.io/stefanprodan/podinfo:6.0.1
+ghcr.io/stefanprodan/podinfo:6.0.1
+go test -timeout 60m -v ./ -existing -provider azure --tags=integration
+2023/03/24 02:32:25 Setting up azure e2e test infrastructure
+2023/03/24 02:32:25 Terraform binary:  /usr/local/bin/terraform
+2023/03/24 02:32:25 Init Terraform
+2023/03/24 02:32:37 Applying Terraform
+2023/03/24 02:36:49 pushing flux test image acrappsherring.azurecr.io/podinfo:6.0.0
+2023/03/24 02:36:58 pushing flux test image acrappsherring.azurecr.io/podinfo:6.0.1
+2023/03/24 02:38:06 Running e2e tests
+=== RUN   TestNotification
+--- PASS: TestNotification (17.69s)
+=== RUN   TestAzureDevOpsCommitStatus
+--- PASS: TestAzureDevOpsCommitStatus (5.80s)
+=== RUN   TestFluxInstallation
+--- PASS: TestFluxInstallation (0.00s)
+=== RUN   TestRepositoryCloning
+    flux_test.go:92: Creating application sources
+We noticed you're using an older version of Git. For the best experience, upgrade to a newer version.
+Analyzing objects... (1/1) (6 ms)
+Storing packfile... done (177 ms)
+Storing index... done (52 ms)
+We noticed you're using an older version of Git. For the best experience, upgrade to a newer version.
+    flux_test.go:114: Verifying application-gitops namespaces
+=== RUN   TestRepositoryCloning/ssh-feature-branch
+=== RUN   TestRepositoryCloning/ssh-v1
+=== RUN   TestRepositoryCloning/https-feature-branch
+=== RUN   TestRepositoryCloning/https-v1
+--- PASS: TestRepositoryCloning (36.06s)
+    --- PASS: TestRepositoryCloning/ssh-feature-branch (8.39s)
+    --- PASS: TestRepositoryCloning/ssh-v1 (8.57s)
+    --- PASS: TestRepositoryCloning/https-feature-branch (8.40s)
+    --- PASS: TestRepositoryCloning/https-v1 (8.56s)
+=== RUN   TestImageRepositoryAndAutomation
+--- PASS: TestImageRepositoryAndAutomation (18.20s)
+=== RUN   TestACRHelmRelease
+2023/03/24 02:39:27 Pushing 'ghcr.io/stefanprodan/charts/podinfo:6.2.0' to 'acrappsherring.azurecr.io/charts/podinfo:v0.0.1'
+2023/03/24 02:39:33 helm repository condition not ready
+--- PASS: TestACRHelmRelease (15.31s)
+=== RUN   TestKeyVaultSops
+--- PASS: TestKeyVaultSops (15.98s)
+PASS
+2023/03/24 02:40:12 Destroying environment...
+ok      github.com/fluxcd/flux2/tests/integration       947.341s
+```
+
 
 In the above, the test created a build directory build/ and the flux cli binary is copied build/flux. It would be used
 to bootstrap Flux on the cluster. You can configure the location of the Flux CLI binary by setting the FLUX_BINARY variable. 
 We also pull two version of `ghcr.io/stefanprodan/podinfo` image. These images are pushed to the Azure Container Registry
-and used to test `ImageRepository` and `ImageUpdateAutomation`.
+and used to test `ImageRepository` and `ImageUpdateAutomation`. The terraform resources get created and the tests are run.
 
 
 **IMPORTANT:** In case the terraform infrastructure results in a bad state, maybe due to a crash during the apply, 

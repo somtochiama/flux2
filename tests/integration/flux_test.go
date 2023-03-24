@@ -150,7 +150,6 @@ func TestRepositoryCloning(t *testing.T) {
 			g.Eventually(func() bool {
 				err := verifyGitAndKustomization(ctx, testEnv.Client, tt.name, tt.name)
 				if err != nil {
-					fmt.Println(err)
 					return false
 				}
 				return true

@@ -32,6 +32,5 @@ resource "random_pet" "suffix" {
 }
 
 locals {
-#  azure_devops_org = var.azure_devops_org
   name_suffix = "e2e-${random_pet.suffix.id}"
 }
