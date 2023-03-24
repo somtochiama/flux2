@@ -164,7 +164,6 @@ func verifyGitAndKustomization(ctx context.Context, kubeClient client.Client, na
 	}
 
 	if apimeta.IsStatusConditionPresentAndEqual(source.Status.Conditions, meta.ReadyCondition, metav1.ConditionTrue) == false {
-		fmt.Println(source.Status)
 		return fmt.Errorf("source condition not ready")
 	}
 	kustomization := &kustomizev1.Kustomization{}
@@ -495,7 +494,6 @@ func createTagAndPush(ctx context.Context, path, branchName, newTag string, opts
 	}
 
 	if err := repo.Push(po); err != nil && !errors.Is(err, extgogit.NoErrAlreadyUpToDate) {
-		fmt.Println(err)
 		return err
 	}
 	if err != nil {
