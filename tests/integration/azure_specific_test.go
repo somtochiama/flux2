@@ -21,25 +21,25 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	apimeta "k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/apimachinery/pkg/types"
 	"strings"
 	"testing"
 	"time"
 
 	eventhub "github.com/Azure/azure-event-hubs-go/v3"
-	"github.com/fluxcd/pkg/apis/meta"
 	"github.com/microsoft/azure-devops-go-api/azuredevops"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/git"
 	. "github.com/onsi/gomega"
 	giturls "github.com/whilp/git-urls"
 
 	corev1 "k8s.io/api/core/v1"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1beta2"
 	notiv1beta2 "github.com/fluxcd/notification-controller/api/v1beta2"
+	"github.com/fluxcd/pkg/apis/meta"
 	"github.com/fluxcd/pkg/runtime/events"
 )
 
@@ -47,7 +47,7 @@ func TestNotification(t *testing.T) {
 	g := NewWithT(t)
 	// Currently, only azuredevops is supported
 	if infraOpts.Provider != "azure" {
-		fmt.Printf("Skipping event notification for %s as it is not supported.\n", infraOpts.Provider)
+		fmt.Printf("Skipping Event notification tests for %s as it is not supported.\n", infraOpts.Provider)
 		return
 	}
 
@@ -74,7 +74,6 @@ func TestNotification(t *testing.T) {
 kind: ConfigMap
 metadata:
   name: foobar`
-
 	repoUrl := getTransportURL(cfg.applicationRepository)
 	client, err := getRepository(ctx, repoUrl, defaultBranch, cfg.defaultAuthOpts)
 	g.Expect(err).ToNot(HaveOccurred())
@@ -158,12 +157,13 @@ metadata:
 		if err != nil {
 			return false
 		}
-		fmt.Println(alertObj.Status.Conditions)
-		if !apimeta.IsStatusConditionPresentAndEqual(alert.Status.Conditions, meta.ReadyCondition, metav1.ConditionTrue) {
-			fmt.Println(alertObj.Status.Conditions)
-			return false
+		fmt.Println(alertObj.Status.Conditions, apimeta.IsStatusConditionPresentAndEqual(alert.Status.Conditions, meta.ReadyCondition, metav1.ConditionTrue))
+		if apimeta.IsStatusConditionPresentAndEqual(alertObj.Status.Conditions, meta.ReadyCondition, metav1.ConditionTrue) {
+			fmt.Println("in condition", alertObj.Status.Conditions)
+			return true
 		}
-		return true
+
+		return false
 	}, 60*time.Second, 5*time.Second).Should(BeTrue())
 
 	modifyKsSpec := func(spec *kustomizev1.KustomizationSpec) {
