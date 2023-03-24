@@ -23,6 +23,13 @@ resource "azurerm_key_vault_access_policy" "admin" {
     "SetRotationPolicy"
   ]
   
+  secret_permissions = [
+    "Get",
+    "Delete",
+    "Purge",
+    "Recover"
+  ]
+  
 }
 
 resource "azurerm_key_vault_access_policy" "cluster_binding" {
