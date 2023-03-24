@@ -37,6 +37,7 @@ import (
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
@@ -287,22 +288,27 @@ func setupNamespace(ctx context.Context, name string, opts nsConfig) error {
 }
 
 func deleteNamespace(ctx context.Context, name string) error {
+	var allErr []error
 	namespace := corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
 	}
 	if err := testEnv.Client.Delete(ctx, &namespace); err != nil {
-		return err
+		allErr = append(allErr, err)
 	}
 
 	source := &sourcev1.GitRepository{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: name}}
 	if err := testEnv.Client.Delete(ctx, source); err != nil {
-		return err
+		allErr = append(allErr, err)
 	}
 
 	kustomization := &kustomizev1.Kustomization{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: name}}
-	return testEnv.Client.Delete(ctx, kustomization)
+	if err := testEnv.Client.Delete(ctx, kustomization); err != nil {
+		allErr = append(allErr, err)
+	}
+
+	return kerrors.NewAggregate(allErr)
 }
 
 // getRepository creates a temporary directory and clones the git repository to it.

@@ -105,7 +105,7 @@ metadata:
 		return nil
 	})
 	g.Expect(err).To(Not(HaveOccurred()))
-	//defer testEnv.Client.Delete(ctx, &secret)
+	defer testEnv.Client.Delete(ctx, &secret)
 
 	provider := notiv1beta2.Provider{
 		ObjectMeta: metav1.ObjectMeta{
@@ -124,7 +124,7 @@ metadata:
 		return nil
 	})
 	g.Expect(err).ToNot(HaveOccurred())
-	//defer testEnv.Client.Delete(ctx, &provider)
+	defer testEnv.Client.Delete(ctx, &provider)
 
 	alert := notiv1beta2.Alert{
 		ObjectMeta: metav1.ObjectMeta{
@@ -157,9 +157,7 @@ metadata:
 		if err != nil {
 			return false
 		}
-		fmt.Println(alertObj.Status.Conditions, apimeta.IsStatusConditionPresentAndEqual(alert.Status.Conditions, meta.ReadyCondition, metav1.ConditionTrue))
 		if apimeta.IsStatusConditionPresentAndEqual(alertObj.Status.Conditions, meta.ReadyCondition, metav1.ConditionTrue) {
-			fmt.Println("in condition", alertObj.Status.Conditions)
 			return true
 		}
 
@@ -182,7 +180,7 @@ metadata:
 		path:         "./",
 		modifyKsSpec: modifyKsSpec,
 	})).To(Succeed())
-	//defer deleteNamespace(ctx, name)
+	defer deleteNamespace(ctx, name)
 
 	g.Eventually(func() bool {
 		err := verifyGitAndKustomization(ctx, testEnv.Client, name, name)
@@ -203,9 +201,8 @@ metadata:
 				return false
 			}
 
-			fmt.Println(event.Message, event.InvolvedObject.Name)
 			if event.InvolvedObject.Kind == kustomizev1.KustomizationKind &&
-				strings.Contains(event.Message, "Health check passed") {
+				event.InvolvedObject.Name == name && event.InvolvedObject.Namespace == name {
 				return true
 			}
 
@@ -215,7 +212,7 @@ metadata:
 		default:
 			return false
 		}
-	}, 120*time.Second, 1*time.Second).Should(BeTrue())
+	}, 60*time.Second, 1*time.Second).Should(BeTrue())
 	err = listenerHandler.Close(ctx)
 	g.Expect(err).ToNot(HaveOccurred())
 	err = hub.Close(ctx)
