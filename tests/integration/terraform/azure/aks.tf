@@ -10,7 +10,7 @@ module "acr" {
 
   name = "acrapps${random_pet.suffix.id}"
   location = var.location
-  aks_principal_id = module.aks.principal_id
+  aks_principal_id = [module.aks.principal_id]
   resource_group = module.aks.resource_group
 
   depends_on = [module.aks]

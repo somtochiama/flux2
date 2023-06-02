@@ -19,17 +19,17 @@ package test
 import (
 	"context"
 	"fmt"
-	"github.com/fluxcd/pkg/git"
 	"io"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"log"
 	"strings"
 	"testing"
 	"time"
 
-	sourcev1 "github.com/fluxcd/source-controller/api/v1beta2"
+	"github.com/fluxcd/pkg/git"
+	sourcev1 "github.com/fluxcd/source-controller/api/v1"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 func TestFluxInstallation(t *testing.T) {

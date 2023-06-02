@@ -32,9 +32,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	automationv1beta1 "github.com/fluxcd/image-automation-controller/api/v1beta1"
-	reflectorv1beta1 "github.com/fluxcd/image-reflector-controller/api/v1beta1"
+	reflectorv1beta2 "github.com/fluxcd/image-reflector-controller/api/v1beta2"
 	"github.com/fluxcd/pkg/apis/meta"
-	sourcev1 "github.com/fluxcd/source-controller/api/v1beta2"
+	sourcev1 "github.com/fluxcd/source-controller/api/v1"
 )
 
 func TestImageRepositoryAndAutomation(t *testing.T) {
@@ -101,14 +101,14 @@ spec:
 		return true
 	}, 60*time.Second, 5*time.Second).Should(BeTrue())
 
-	imageRepository := reflectorv1beta1.ImageRepository{
+	imageRepository := reflectorv1beta2.ImageRepository{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "podinfo",
 			Namespace: name,
 		},
 	}
 	_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, &imageRepository, func() error {
-		imageRepository.Spec = reflectorv1beta1.ImageRepositorySpec{
+		imageRepository.Spec = reflectorv1beta2.ImageRepositorySpec{
 			Image: imageURL,
 			Interval: metav1.Duration{
 				Duration: 1 * time.Minute,
@@ -119,19 +119,19 @@ spec:
 	g.Expect(err).ToNot(HaveOccurred())
 	defer testEnv.Client.Delete(ctx, &imageRepository)
 
-	imagePolicy := reflectorv1beta1.ImagePolicy{
+	imagePolicy := reflectorv1beta2.ImagePolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "podinfo",
 			Namespace: name,
 		},
 	}
 	_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, &imagePolicy, func() error {
-		imagePolicy.Spec = reflectorv1beta1.ImagePolicySpec{
+		imagePolicy.Spec = reflectorv1beta2.ImagePolicySpec{
 			ImageRepositoryRef: meta.NamespacedObjectReference{
 				Name: imageRepository.Name,
 			},
-			Policy: reflectorv1beta1.ImagePolicyChoice{
-				SemVer: &reflectorv1beta1.SemVerPolicy{
+			Policy: reflectorv1beta2.ImagePolicyChoice{
+				SemVer: &reflectorv1beta2.SemVerPolicy{
 					Range: "6.0.x",
 				},
 			},

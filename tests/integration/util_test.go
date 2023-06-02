@@ -20,8 +20,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/fluxcd/pkg/git/gogit"
-	"github.com/fluxcd/pkg/git/repository"
 	"io"
 	"log"
 	"net/url"
@@ -31,6 +29,13 @@ import (
 	"strings"
 	"time"
 
+	extgogit "github.com/go-git/go-git/v5"
+	gitconfig "github.com/go-git/go-git/v5/config"
+	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/object"
+	"github.com/go-git/go-git/v5/plumbing/transport"
+	"github.com/go-git/go-git/v5/plumbing/transport/http"
+	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"github.com/google/go-containerregistry/pkg/crane"
 	gossh "golang.org/x/crypto/ssh"
 	corev1 "k8s.io/api/core/v1"
@@ -41,18 +46,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	extgogit "github.com/fluxcd/go-git/v5"
-	gitconfig "github.com/fluxcd/go-git/v5/config"
-	"github.com/fluxcd/go-git/v5/plumbing"
-	"github.com/fluxcd/go-git/v5/plumbing/object"
-	"github.com/fluxcd/go-git/v5/plumbing/transport"
-	"github.com/fluxcd/go-git/v5/plumbing/transport/http"
-	"github.com/fluxcd/go-git/v5/plumbing/transport/ssh"
-	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1beta2"
+	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1"
 	"github.com/fluxcd/pkg/apis/meta"
 	"github.com/fluxcd/pkg/git"
+	"github.com/fluxcd/pkg/git/gogit"
+	"github.com/fluxcd/pkg/git/repository"
 	"github.com/fluxcd/pkg/ssh/knownhosts"
-	sourcev1 "github.com/fluxcd/source-controller/api/v1beta2"
+	sourcev1 "github.com/fluxcd/source-controller/api/v1"
 )
 
 const defaultBranch = "main"
@@ -323,7 +323,7 @@ func getRepository(ctx context.Context, repoURL, branchName string, authOpts *gi
 		return nil, err
 	}
 
-	_, err = client.Clone(ctx, repoURL, repository.CloneOptions{
+	_, err = client.Clone(ctx, repoURL, repository.CloneConfig{
 		CheckoutStrategy: repository.CheckoutStrategy{
 			Branch: branchName,
 		},
@@ -385,7 +385,7 @@ func commitAndPushAll(ctx context.Context, client *gogit.Client, files map[strin
 		}
 	}
 
-	err = client.Push(ctx)
+	err = client.Push(ctx, repository.PushConfig{})
 	if err != nil {
 		return fmt.Errorf("unable to push: %s", err)
 	}

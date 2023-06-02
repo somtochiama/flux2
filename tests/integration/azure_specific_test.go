@@ -37,7 +37,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1beta2"
+	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1"
+	notiv1 "github.com/fluxcd/notification-controller/api/v1"
 	notiv1beta2 "github.com/fluxcd/notification-controller/api/v1beta2"
 	events "github.com/fluxcd/pkg/apis/event/v1beta1"
 	"github.com/fluxcd/pkg/apis/meta"
@@ -137,7 +138,7 @@ metadata:
 			ProviderRef: meta.LocalObjectReference{
 				Name: provider.Name,
 			},
-			EventSources: []notiv1beta2.CrossNamespaceObjectReference{
+			EventSources: []notiv1.CrossNamespaceObjectReference{
 				{
 					Kind:      "Kustomization",
 					Name:      name,
@@ -313,7 +314,7 @@ metadata:
 			ProviderRef: meta.LocalObjectReference{
 				Name: provider.Name,
 			},
-			EventSources: []notiv1beta2.CrossNamespaceObjectReference{
+			EventSources: []notiv1.CrossNamespaceObjectReference{
 				{
 					Kind:      "Kustomization",
 					Name:      name,
