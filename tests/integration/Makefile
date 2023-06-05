@@ -3,13 +3,19 @@ PROVIDER_ARG ?=
 TEST_TIMEOUT ?= 60m
 FLUX_BINARY ?= ../../bin/flux
 
-test:
-	# These two versions of podinfo are pushed to the cloud registry and used in tests for ImageUpdateAutomation
+test: sops-check
 	mkdir -p build
 	cp $(FLUX_BINARY) build/flux
+	# These two versions of podinfo are pushed to the cloud registry and used in tests for ImageUpdateAutomation
 	docker pull ghcr.io/stefanprodan/podinfo:6.0.0
 	docker pull ghcr.io/stefanprodan/podinfo:6.0.1
 	go test -timeout $(TEST_TIMEOUT) -v ./ $(GO_TEST_ARGS) $(PROVIDER_ARG) --tags=integration
 
 test-azure:
 	$(MAKE) test PROVIDER_ARG="-provider azure"
+
+
+sops-check:
+ifeq ($(shell which sops),)
+	$(error "no sops in PATH, consider installing")
+endif

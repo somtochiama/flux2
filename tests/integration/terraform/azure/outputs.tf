@@ -6,29 +6,29 @@ output "kubeconfig" {
 
 output "shared_pat" {
   sensitive = true
-  value = var.azuredevops_pat
+  value     = var.azuredevops_pat
 }
 
 output "fleet_infra_repository" {
   value = {
     http = azuredevops_git_repository.fleet_infra.remote_url
-    ssh = "ssh://git@ssh.dev.azure.com/v3/${var.azure_devops_org}/${azuredevops_git_repository.fleet_infra.project_id}/${azuredevops_git_repository.fleet_infra.name}"
+    ssh  = "ssh://git@ssh.dev.azure.com/v3/${var.azure_devops_org}/${azuredevops_git_repository.fleet_infra.project_id}/${azuredevops_git_repository.fleet_infra.name}"
   }
 }
 
 output "application_repository" {
   value = {
     http = azuredevops_git_repository.application.remote_url
-    ssh = "ssh://git@ssh.dev.azure.com/v3/${var.azure_devops_org}/${azuredevops_git_repository.application.project_id}/${azuredevops_git_repository.application.name}"
+    ssh  = "ssh://git@ssh.dev.azure.com/v3/${var.azure_devops_org}/${azuredevops_git_repository.application.project_id}/${azuredevops_git_repository.application.name}"
   }
 }
 
-output aks_client_id {
+output "aks_client_id" {
   value = module.aks.kubelet_client_id
 }
 
 output "event_hub_sas" {
-  value = azurerm_eventhub_authorization_rule.this.primary_connection_string
+  value     = azurerm_eventhub_authorization_rule.this.primary_connection_string
   sensitive = true
 }
 
@@ -37,5 +37,5 @@ output "sops_id" {
 }
 
 output "acr_url" {
-    value = module.acr.registry_url
+  value = module.acr.registry_url
 }

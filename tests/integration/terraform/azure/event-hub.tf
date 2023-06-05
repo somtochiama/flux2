@@ -1,6 +1,6 @@
 resource "azurerm_eventhub_namespace" "this" {
-  name = "ehns-${local.name_suffix}"
-  location            = var.location
+  name                = "ehns-${local.name_suffix}"
+  location            = var.azure_location
   resource_group_name = module.aks.resource_group
   sku                 = "Basic"
   capacity            = 1
@@ -8,7 +8,7 @@ resource "azurerm_eventhub_namespace" "this" {
 
 
 resource "azurerm_eventhub" "this" {
-  name = "eh-${local.name_suffix}"
+  name                = "eh-${local.name_suffix}"
   namespace_name      = azurerm_eventhub_namespace.this.name
   resource_group_name = module.aks.resource_group
   partition_count     = 1
