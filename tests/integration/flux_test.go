@@ -142,15 +142,7 @@ func TestRepositoryCloning(t *testing.T) {
 			t.Cleanup(func() {
 				err := deleteNamespace(ctx, tt.name)
 				if err != nil {
-					log.Printf("failed to delete resources in '%s' namespace", tt.name)
-				}
-			})
-
-			g.Expect(err).ToNot(HaveOccurred())
-			t.Cleanup(func() {
-				err := deleteNamespace(ctx, tt.name)
-				if err != nil {
-					log.Printf("failed to delete resources in '%s' namespace", tt.name)
+					log.Printf("failed to delete resources in '%s' namespace: %w", tt.name, err)
 				}
 			})
 
