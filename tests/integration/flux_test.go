@@ -91,7 +91,8 @@ func TestRepositoryCloning(t *testing.T) {
 
 	t.Log("Creating application sources")
 	url := getTransportURL(cfg.applicationRepository)
-	client, err := getRepository(ctx, url, defaultBranch, cfg.defaultAuthOpts)
+	tmpDir := t.TempDir()
+	client, err := getRepository(ctx, tmpDir, url, defaultBranch, cfg.defaultAuthOpts)
 	g.Expect(err).ToNot(HaveOccurred())
 
 	files := make(map[string]io.Reader)
@@ -129,10 +130,11 @@ func TestRepositoryCloning(t *testing.T) {
 				url = cfg.applicationRepository.ssh
 			}
 
-			err := setupNamespace(ctx, tt.name, nsConfig{
+			nsName := fmt.Sprintf("%s-%s", tt.name, randStringRunes(5))
+			err := setupNamespace(ctx, nsName, nsConfig{
 				repoURL:    url,
 				protocol:   tt.cloneType,
-				objectName: tt.name,
+				objectName: nsName,
 				path:       fmt.Sprintf("./cloning-test/%s", tt.name),
 				modifyGitSpec: func(spec *sourcev1.GitRepositorySpec) {
 					spec.Reference = ref
@@ -140,23 +142,23 @@ func TestRepositoryCloning(t *testing.T) {
 			})
 			g.Expect(err).ToNot(HaveOccurred())
 			t.Cleanup(func() {
-				err := deleteNamespace(ctx, tt.name)
+				err := deleteNamespace(ctx, nsName)
 				if err != nil {
 					log.Printf("failed to delete resources in '%s' namespace: %s", tt.name, err)
 				}
 			})
 
-			// Wait for configmap to be deployed
 			g.Eventually(func() bool {
-				err := verifyGitAndKustomization(ctx, testEnv.Client, tt.name, tt.name)
+				err := verifyGitAndKustomization(ctx, testEnv.Client, nsName, nsName)
 				if err != nil {
 					return false
 				}
 				return true
 			}, 120*time.Second, 5*time.Second).Should(BeTrue())
 
+			// Wait for configmap to be deployed
 			g.Eventually(func() bool {
-				nn := types.NamespacedName{Name: "foobar", Namespace: tt.name}
+				nn := types.NamespacedName{Name: "foobar", Namespace: nsName}
 				cm := &corev1.ConfigMap{}
 				err = testEnv.Client.Get(ctx, nn, cm)
 				if err != nil {
@@ -165,7 +167,6 @@ func TestRepositoryCloning(t *testing.T) {
 
 				return true
 			}, 120*time.Second, 5*time.Second).Should(BeTrue())
-
 		})
 	}
 }

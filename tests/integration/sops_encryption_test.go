@@ -41,7 +41,7 @@ import (
 func TestKeyVaultSops(t *testing.T) {
 	g := NewWithT(t)
 	ctx := context.TODO()
-	name := "key-vault-sops"
+	name := "key-vault-" + randStringRunes(5)
 	secretYaml := `apiVersion: v1
 kind: Secret
 metadata:
@@ -50,7 +50,8 @@ stringData:
   foo: "bar"`
 
 	repoUrl := getTransportURL(cfg.applicationRepository)
-	client, err := getRepository(ctx, repoUrl, defaultBranch, cfg.defaultAuthOpts)
+	tmpDir := t.TempDir()
+	client, err := getRepository(ctx, tmpDir, repoUrl, defaultBranch, cfg.defaultAuthOpts)
 	g.Expect(err).ToNot(HaveOccurred())
 	err = tftestenv.RunCommand(ctx, client.Path(), "mkdir -p ./key-vault-sops", tftestenv.RunCommandOptions{})
 	g.Expect(err).ToNot(HaveOccurred())

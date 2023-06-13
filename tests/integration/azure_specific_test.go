@@ -53,7 +53,7 @@ func TestNotification(t *testing.T) {
 	}
 
 	ctx := context.TODO()
-	name := "test-notification"
+	name := "test-notification-" + randStringRunes(5)
 
 	// Start listening to eventhub with latest offset
 	// TODO(somtochiama): Make here provider agnostic
@@ -67,7 +67,7 @@ func TestNotification(t *testing.T) {
 	runtimeInfo, err := hub.GetRuntimeInformation(ctx)
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(len(runtimeInfo.PartitionIDs)).To(Equal(1))
-	listenerHandler, err := hub.Receive(ctx, runtimeInfo.PartitionIDs[0], handler)
+	listenerHandler, err := hub.Receive(ctx, runtimeInfo.PartitionIDs[0], handler, eventhub.ReceiveWithLatestOffset())
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// Setup Flux resources
@@ -76,7 +76,7 @@ kind: ConfigMap
 metadata:
   name: foobar`
 	repoUrl := getTransportURL(cfg.applicationRepository)
-	client, err := getRepository(ctx, repoUrl, defaultBranch, cfg.defaultAuthOpts)
+	client, err := getRepository(ctx, t.TempDir(), repoUrl, defaultBranch, cfg.defaultAuthOpts)
 	g.Expect(err).ToNot(HaveOccurred())
 	files := make(map[string]io.Reader)
 	files["configmap.yaml"] = strings.NewReader(manifest)
@@ -207,8 +207,6 @@ metadata:
 				return true
 			}
 
-			t.Logf("event received from '%s/%s': %s",
-				event.InvolvedObject.Kind, event.InvolvedObject.Name, event.Message)
 			return false
 		default:
 			return false
@@ -237,7 +235,8 @@ metadata:
   name: foobar`
 
 	repoUrl := getTransportURL(cfg.applicationRepository)
-	c, err := getRepository(ctx, repoUrl, defaultBranch, cfg.defaultAuthOpts)
+	tmpDir := t.TempDir()
+	c, err := getRepository(ctx, tmpDir, repoUrl, defaultBranch, cfg.defaultAuthOpts)
 	g.Expect(err).ToNot(HaveOccurred())
 	files := make(map[string]io.Reader)
 	files["configmap.yaml"] = strings.NewReader(manifest)

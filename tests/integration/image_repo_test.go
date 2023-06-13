@@ -40,7 +40,7 @@ import (
 func TestImageRepositoryAndAutomation(t *testing.T) {
 	g := NewWithT(t)
 	ctx := context.TODO()
-	name := "image-repository"
+	name := "image-repository-" + randStringRunes(5)
 
 	fullImageURL, ok := testRepos["podinfo:6.0.0"]
 	if !ok {
@@ -53,7 +53,7 @@ func TestImageRepositoryAndAutomation(t *testing.T) {
 kind: Deployment
 metadata:
   name: podinfo
-  namespace: image-repository
+  namespace: %s
 spec:
   selector:
     matchLabels:
@@ -75,20 +75,21 @@ spec:
             - localhost:9898/readyz
           initialDelaySeconds: 5
           timeoutSeconds: 5
-`, fullImageURL, name)
+`, name, fullImageURL, name)
 
 	repoUrl := getTransportURL(cfg.applicationRepository)
-	client, err := getRepository(ctx, repoUrl, defaultBranch, cfg.defaultAuthOpts)
+	tmpDir := t.TempDir()
+	client, err := getRepository(ctx, tmpDir, repoUrl, defaultBranch, cfg.defaultAuthOpts)
 	g.Expect(err).ToNot(HaveOccurred())
 	files := make(map[string]io.Reader)
-	files["image-repository/podinfo.yaml"] = strings.NewReader(manifest)
+	files[name+"/podinfo.yaml"] = strings.NewReader(manifest)
 	g.Expect(err).ToNot(HaveOccurred())
 	err = commitAndPushAll(ctx, client, files, name)
 	g.Expect(err).ToNot(HaveOccurred())
 
 	err = setupNamespace(ctx, name, nsConfig{
 		repoURL: repoUrl,
-		path:    "./image-repository",
+		path:    name,
 	})
 	g.Expect(err).ToNot(HaveOccurred())
 	defer deleteNamespace(ctx, name)
@@ -170,7 +171,7 @@ spec:
 				},
 			},
 			Update: &automationv1beta1.UpdateStrategy{
-				Path:     "./image-repository",
+				Path:     name,
 				Strategy: automationv1beta1.UpdateStrategySetters,
 			},
 		}
@@ -181,7 +182,7 @@ spec:
 
 	// Wait for image repository to be ready
 	g.Eventually(func() bool {
-		client, err := getRepository(ctx, repoUrl, name, cfg.defaultAuthOpts)
+		client, err := getRepository(ctx, t.TempDir(), repoUrl, name, cfg.defaultAuthOpts)
 		if err != nil {
 			return false
 		}

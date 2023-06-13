@@ -1,5 +1,5 @@
 resource "azuredevops_project" "e2e" {
-  name               = "e2e-${local.name_suffix}"
+  name               = "${local.name_suffix}"
   visibility         = "private"
   version_control    = "Git"
   work_item_template = "Agile"

@@ -216,7 +216,18 @@ func setup(m *testing.M) (exitVal int, err error) {
 		return 0, err
 	}
 
-	err = installFlux(ctx, testEnv.Client, installArgs{
+	tmpDir, err := os.MkdirTemp("", "*-flux-test")
+	if err != nil {
+		return 0, fmt.Errorf("error creating temp dir: %w", err)
+	}
+	defer func() {
+		err := os.RemoveAll(tmpDir)
+		if err != nil {
+			log.Printf("error removing test dir: %s\n", err)
+		}
+	}()
+
+	err = installFlux(ctx, tmpDir, testEnv.Client, installArgs{
 		kubeconfigPath: kubeconfigPath,
 		secretData:     cfg.envCredsData,
 	})

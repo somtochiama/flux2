@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"net/url"
 	"os"
 	"os/exec"
@@ -55,7 +56,16 @@ import (
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
 )
 
+var rand1 *rand.Rand
+
+func init() {
+	randSource := rand.NewSource(time.Now().UnixNano())
+	rand1 = rand.New(randSource)
+}
+
 const defaultBranch = "main"
+
+var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz1234567890")
 
 // fluxConfig contains configuration for installing FLux in a cluster
 type installArgs struct {
@@ -64,7 +74,7 @@ type installArgs struct {
 }
 
 // installFlux adds the core Flux components to the cluster specified in the kubeconfig file.
-func installFlux(ctx context.Context, kubeClient client.Client, conf installArgs) error {
+func installFlux(ctx context.Context, tmpDir string, kubeClient client.Client, conf installArgs) error {
 	// Create flux-system namespace
 	namespace := corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -108,7 +118,7 @@ func installFlux(ctx context.Context, kubeClient client.Client, conf installArgs
 	if err != nil {
 		return err
 	}
-	c, err := getRepository(ctx, repoURL, defaultBranch, cfg.defaultAuthOpts)
+	c, err := getRepository(ctx, tmpDir, repoURL, defaultBranch, cfg.defaultAuthOpts)
 	if err != nil {
 		return err
 	}
@@ -287,14 +297,6 @@ func setupNamespace(ctx context.Context, name string, opts nsConfig) error {
 
 func deleteNamespace(ctx context.Context, name string) error {
 	var allErr []error
-	namespace := corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-		},
-	}
-	if err := testEnv.Client.Delete(ctx, &namespace); err != nil {
-		allErr = append(allErr, err)
-	}
 
 	source := &sourcev1.GitRepository{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: name}}
 	if err := testEnv.Client.Delete(ctx, source); err != nil {
@@ -306,19 +308,22 @@ func deleteNamespace(ctx context.Context, name string) error {
 		allErr = append(allErr, err)
 	}
 
+	namespace := corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+	}
+	if err := testEnv.Client.Delete(ctx, &namespace); err != nil {
+		allErr = append(allErr, err)
+	}
+
 	return kerrors.NewAggregate(allErr)
 }
 
 // getRepository creates a temporary directory and clones the git repository to it.
 // if the repository is empty, it initializes a new git repository
-func getRepository(ctx context.Context, repoURL, branchName string, authOpts *git.AuthOptions) (*gogit.Client, error) {
-
-	tmpDir, err := os.MkdirTemp("", "*-repository")
-	if err != nil {
-		return nil, err
-	}
-
-	client, err := gogit.NewClient(tmpDir, authOpts, gogit.WithSingleBranch(false), gogit.WithDiskStorage())
+func getRepository(ctx context.Context, dir, repoURL, branchName string, authOpts *git.AuthOptions) (*gogit.Client, error) {
+	client, err := gogit.NewClient(dir, authOpts, gogit.WithSingleBranch(false), gogit.WithDiskStorage())
 	if err != nil {
 		return nil, err
 	}
@@ -482,6 +487,9 @@ func createTagAndPush(ctx context.Context, path, branchName, newTag string, opts
 
 		return nil
 	})
+	if err != nil {
+		return fmt.Errorf("error deleting local tag: %w", err)
+	}
 
 	// Delete remote tag
 	po := &extgogit.PushOptions{
@@ -638,4 +646,12 @@ func (a *CustomPublicKeys) ClientConfig() (*gossh.ClientConfig, error) {
 	}
 
 	return config, nil
+}
+
+func randStringRunes(n int) string {
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letterRunes[rand1.Intn(len(letterRunes))]
+	}
+	return string(b)
 }

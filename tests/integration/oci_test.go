@@ -39,9 +39,10 @@ func TestACRHelmRelease(t *testing.T) {
 	ctx := context.TODO()
 
 	// Create namespace for test
+	name := "acr-" + randStringRunes(5)
 	namespace := corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "acr-helm-release",
+			Name: name,
 		},
 	}
 	_, err := controllerutil.CreateOrUpdate(ctx, testEnv.Client, &namespace, func() error {
@@ -55,7 +56,7 @@ func TestACRHelmRelease(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// Create HelmRepository and wait for it to sync
-	helmRepository := sourcev1.HelmRepository{ObjectMeta: metav1.ObjectMeta{Name: "acr", Namespace: namespace.Name}}
+	helmRepository := sourcev1.HelmRepository{ObjectMeta: metav1.ObjectMeta{Name: namespace.Name, Namespace: namespace.Name}}
 	_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, &helmRepository, func() error {
 		helmRepository.Spec = sourcev1.HelmRepositorySpec{
 			URL: fmt.Sprintf("oci://%s", repoURL),
