@@ -14,6 +14,9 @@ test: sops-check
 test-azure:
 	$(MAKE) test PROVIDER_ARG="-provider azure"
 
+test-gcp:
+	$(MAKE) test PROVIDER_ARG="-provider gcp"
+
 
 sops-check:
 ifeq ($(shell which sops),)

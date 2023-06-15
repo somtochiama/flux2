@@ -34,12 +34,12 @@ import (
 	sourcev1 "github.com/fluxcd/source-controller/api/v1beta2"
 )
 
-func TestACRHelmRelease(t *testing.T) {
+func TestOCIHelmRelease(t *testing.T) {
 	g := NewWithT(t)
 	ctx := context.TODO()
 
 	// Create namespace for test
-	name := "acr-" + randStringRunes(5)
+	name := "oci-helm-" + randStringRunes(5)
 	namespace := corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
@@ -51,7 +51,7 @@ func TestACRHelmRelease(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 	defer testEnv.Client.Delete(ctx, &namespace)
 
-	repoURL := fmt.Sprintf("%s/charts/podinfo", cfg.registryURL)
+	repoURL := fmt.Sprintf("%s/charts/podinfo", testRegistry)
 	err = pushImagesFromURL(repoURL, "ghcr.io/stefanprodan/charts/podinfo:6.2.0", []string{"v0.0.1"})
 	g.Expect(err).ToNot(HaveOccurred())
 
@@ -63,7 +63,7 @@ func TestACRHelmRelease(t *testing.T) {
 			Interval: metav1.Duration{
 				Duration: 5 * time.Minute,
 			},
-			Provider:        "azure",
+			Provider:        infraOpts.Provider,
 			PassCredentials: true,
 			Type:            "oci",
 		}

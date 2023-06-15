@@ -109,7 +109,7 @@ func TestRepositoryCloning(t *testing.T) {
 
 	err = commitAndPushAll(ctx, client, files, branchName)
 	g.Expect(err).ToNot(HaveOccurred())
-	err = createTagAndPush(ctx, client.Path(), branchName, tagName, cfg.defaultAuthOpts)
+	err = createTagAndPush(ctx, client, branchName, tagName)
 	g.Expect(err).ToNot(HaveOccurred())
 
 	t.Log("Verifying application-gitops namespaces")

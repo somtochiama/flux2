@@ -3,6 +3,14 @@
 The goal is to verify that Flux integration with cloud providers are actually working now and in the future.
 Currently, we only have tests for Azure.
 
+## General requirements
+
+These CLI tools need to be installed for each of the tests to run successfully.
+
+- Docker CLI for registry login.
+- [SOPS CLI](https://github.com/mozilla/sops) for encrypting files
+- kubectl for applying certain install manifests.
+
 ## Azure
 
 ### Architecture
@@ -18,44 +26,65 @@ The [azure](./terraform/azure) Terraform creates the AKS cluster and related res
 
 - Azure account with an active subscription to be able to create AKS and ACR, and permission to assign roles. Role assignment is required for allowing AKS workloads to access ACR.
 - Azure CLI, need to be logged in using `az login`.
-- Docker CLI for registry login.
-- [SOPS CLI](https://github.com/mozilla/sops) for encrypting files
-- kubectl for applying certain install manifests.
 - An Azure DevOps organization, personal access token and ssh keys for accessing repositories within the organization. The scope required for the personal access token is:
   - `Project and Team` - read, write and manage access
   - `Code` - Full
   - Please take a look at the [terraform provider](https://registry.terraform.io/providers/microsoft/azuredevops/latest/docs/guides/authenticating_using_the_personal_access_token#create-a-personal-access-token)
     for more explanation.
+  - Azure DevOps only supports RSA. keys Please see
+    [documentation](https://learn.microsoft.com/en-us/azure/devops/repos/git/use-ssh-keys-to-authenticate?view=azure-devops#set-up-ssh-key-authentication)
+    for how to set up SSH key authentication.
 
-### Tests
+## GCP
 
-Each test run is initiated by running `terraform apply` in the azure Terraform directory, it does this by using the [tftestenv package](https://github.com/fluxcd/test-infra/blob/main/tftestenv/testenv.go) within the `fluxcd/test-infra` repository.
-It then reads the output of the Terraform to get information needed for the tests like the kubernetes client ID, the azure DevOps repository urls, the key vault ID etc. This means that a lot of the communication with the Azure API is offset to
-Terraform instead of requiring it to be implemented in the test.
+### Architecture
+
+The [gcp](./terraform/gcp) terraform files create the GKE cluster and related resources to run the tests. It creates:
+- An Google Container Registry and Artifact Registry
+- An Google Kubernetes Cluster
+- Two Google Cloud Source Repositories
+
+Note: It doesn't create Google KMS keyrings and crypto keys because these cannot be destroyed. Instead, you have
+to pass in the crypto key and keyring that would be used to test the sops encryption in Flux. Please see `.env.sample`
+for the terraform variables
+
+### Requirements
+
+- GCP account with an active project to be able to create GKE and GCR, and permission to assign roles.
+- Existing GCP KMS keyring and crypto key.
+- `gcloud` CLI, need to be logged in using `gcloud auth login`.
+- Register SSH Keys with Google Cloud. # add docs
+
+## Tests
+
+Each test run is initiated by running `terraform apply` in the provider's terraform directory e.g terraform apply,
+it does this by using the [tftestenv package](https://github.com/fluxcd/test-infra/blob/main/tftestenv/testenv.go)
+within the `fluxcd/test-infra` repository. It then reads the output of the Terraform to get information needed
+for the tests like the kubernetes client ID, the azure DevOps repository urls, the key vault ID etc. This means that
+a lot of the communication with the Azure API is offset to Terraform instead of requiring it to be implemented in the test.
 
 The following tests are currently implemented:
 
-- [x] Flux can be successfully installed on AKS using the Flux CLI
-- [x] source-controller can clone Azure DevOps repositories (https+ssh)
-- [x] image-reflector-controller can list tags from Azure Container Registry image repositories
-- [x] kustomize-controller can decrypt secrets using SOPS and Azure Key Vault
-- [x] image-automation-controller can create branches and push to Azure DevOps repositories (https+ssh)
+- [x] Flux can be successfully installed on the cluster using the Flux CLI
+- [x] source-controller can clone cloud provider repositories (Azure DevOps, Google Cloud Source Repositories) (https+ssh)
+- [x] image-reflector-controller can list tags from provider container Registry image repositories
+- [x] kustomize-controller can decrypt secrets using SOPS and provider key vault
+- [x] image-automation-controller can create branches and push to cloud repositories (https+ssh)
+- [x] source-controller can pull charts from cloud provider container registry Helm repositories
+
+This tests happen only for Azure since it is supported in the notification-controller:
+
 - [x] notification-controller can send commit status to Azure DevOps
 - [x] notification-controller can forward events to Azure Event Hub
-- [x] source-controller can pull charts from Azure Container Registry Helm repositories
 
 ### Running these tests locally
 
 1. Ensure that you have the Flux CLI binary that is to be tested built and ready. You can build it by running
-`make build` at the root of this repository. The binary is located at `./bin` directory at the root and by default
-this is where the Makefile copies the binary for the tests from. If you have it in a different location, you can set it
-with the `FLUX_BINARY` variable
-2. Copy `.env.sample` to `.env` and add the values for the different variables which includes - your Azure DevOps org, 
-personal access tokens and ssh keys for accessing repositories on Azure DevOps org. Run  `source .env` to set them.
-Note: Azure DevOps only supports RSA. keys Please see 
-[documentation](https://learn.microsoft.com/en-us/azure/devops/repos/git/use-ssh-keys-to-authenticate?view=azure-devops#set-up-ssh-key-authentication) \
-for how to set up SSH key authentication.
-3. Run `make test-azure`, setting the location of the flux binary with `FLUX_BINARY` variable
+   `make build` at the root of this repository. The binary is located at `./bin` directory at the root and by default
+   this is where the Makefile copies the binary for the tests from. If you have it in a different location, you can set it
+   with the `FLUX_BINARY` variable
+2. Copy `.env.sample` to `.env` and add the values for the different variables for the provider that you are running the tests for. 
+3. Run `make test-<provider>`, setting the location of the flux binary with `FLUX_BINARY` variable
 
 ```console
 $ make test-azure
@@ -88,13 +117,12 @@ ok      github.com/fluxcd/flux2/tests/integration       947.341s
 ```
 
 In the above, the test created a build directory build/ and the flux cli binary is copied build/flux. It would be used
-to bootstrap Flux on the cluster. You can configure the location of the Flux CLI binary by setting the FLUX_BINARY variable. 
+to bootstrap Flux on the cluster. You can configure the location of the Flux CLI binary by setting the FLUX_BINARY variable.
 We also pull two version of `ghcr.io/stefanprodan/podinfo` image. These images are pushed to the Azure Container Registry
 and used to test `ImageRepository` and `ImageUpdateAutomation`. The terraform resources get created and the tests are run.
 
-
-**IMPORTANT:** In case the terraform infrastructure results in a bad state, maybe due to a crash during the apply, 
-the whole infrastructure can be destroyed by running terraform destroy in terraform/azure directory.
+**IMPORTANT:** In case the terraform infrastructure results in a bad state, maybe due to a crash during the apply,
+the whole infrastructure can be destroyed by running terraform destroy in terraform/<provider> directory.
 
 
 ### Debugging the tests

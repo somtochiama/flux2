@@ -55,9 +55,13 @@ stringData:
 	g.Expect(err).ToNot(HaveOccurred())
 	err = tftestenv.RunCommand(ctx, client.Path(), "mkdir -p ./key-vault-sops", tftestenv.RunCommandOptions{})
 	g.Expect(err).ToNot(HaveOccurred())
-	err = tftestenv.RunCommand(ctx, client.Path(), fmt.Sprintf("echo \"%s\" > ./key-vault-sops/secret.enc.yaml", secretYaml), tftestenv.RunCommandOptions{})
+	err = tftestenv.RunCommand(ctx, client.Path(),
+		fmt.Sprintf("echo \"%s\" > ./key-vault-sops/secret.enc.yaml", secretYaml),
+		tftestenv.RunCommandOptions{})
 	g.Expect(err).ToNot(HaveOccurred())
-	err = tftestenv.RunCommand(ctx, client.Path(), fmt.Sprintf("sops --encrypt --encrypted-regex '^(data|stringData)$' %s --in-place ./key-vault-sops/secret.enc.yaml", cfg.sopsArgs), tftestenv.RunCommandOptions{})
+	err = tftestenv.RunCommand(ctx, client.Path(),
+		fmt.Sprintf("sops --encrypt --encrypted-regex '^(data|stringData)$' %s --in-place ./key-vault-sops/secret.enc.yaml", cfg.sopsArgs),
+		tftestenv.RunCommandOptions{})
 	g.Expect(err).ToNot(HaveOccurred())
 
 	r, err := os.Open(fmt.Sprintf("%s/key-vault-sops/secret.enc.yaml", client.Path()))

@@ -55,14 +55,10 @@ var (
 	// infraOpts are the options for running the terraform environment
 	infraOpts tftestenv.Options
 
-	// testRepos is a map of registry common name and URL of the test
-	// repositories. This is used as the test cases to run the tests against.
-	// The registry common name need not be the actual registry address but an
-	// identifier to identify the test case without logging any sensitive
-	// account IDs in the subtest names.
-	// For example, map[string]string{"ecr", "xxxxx.dkr.ecr.xxxx.amazonaws.com/foo:v1"}
-	// would result in subtest name TestImageRepositoryScanAWS/ecr.
-	testRepos map[string]string
+	// testRegistry is the registry of the cloud provider.
+	// The podinfo and helm oci charts will be pushed to this
+	// registry
+	testRegistry string
 
 	// versions to tag and push for the podinfo image
 	oldVersion  = "6.0.0"
@@ -77,26 +73,24 @@ var (
 // testConfig hold different variable that will be needed by the different test functions.
 type testConfig struct {
 	// authentication info for git repositories
-	gitPat              string
-	gitUsername         string
-	gitPrivateKey       string
-	gitPublicKey        string
-	defaultGitTransport git.TransportType
-	defaultAuthOpts     *git.AuthOptions
-	// Generate known host? Use flux cli?
+	gitPat                string
+	gitUsername           string
+	gitPrivateKey         string
+	gitPublicKey          string
+	defaultGitTransport   git.TransportType
+	defaultAuthOpts       *git.AuthOptions
 	knownHosts            string
 	fleetInfraRepository  repoConfig
 	applicationRepository repoConfig
 
-	registryURL     string
 	notificationURL string
 
 	// cloud provider dependent argument to pass to the sops cli
 	sopsArgs string
 	// secret data for sops
 	sopsSecretData map[string]string
-	// envCredsData are data field for a secres containing environment variables that the Flux deployments
-	// will need
+	// envCredsData are data field for a secret containing environment variables that the Flux deployments
+	// may need
 	envCredsData map[string]string
 	// kustomizationYaml is the  content of the kustomization.yaml for customizing the Flux manifests
 	kustomizationYaml string
@@ -113,12 +107,9 @@ type repoConfig struct {
 type getTestConfig func(ctx context.Context, output map[string]*tfjson.StateOutput) (*testConfig, error)
 
 // registryLoginFunc is used to perform registry login against a provider based
-// on the terraform state output values. It returns a map of registry common
-// name and test repositories to test against, read from the terraform state
-// output.
-type registryLoginFunc func(ctx context.Context, output map[string]*tfjson.StateOutput) (map[string]string, error)
-
-type pushTestImages func(ctx context.Context, localImgs map[string]string, output map[string]*tfjson.StateOutput) (map[string]string, error)
+// on the terraform state output values. It returns the test registry
+// to test against, read from the terraform state output.
+type registryLoginFunc func(ctx context.Context, output map[string]*tfjson.StateOutput) (string, error)
 
 // ProviderConfig contains the test configurations for the different cloud providers
 type ProviderConfig struct {
@@ -126,8 +117,7 @@ type ProviderConfig struct {
 	createKubeconfig tftestenv.CreateKubeconfig
 	getTestConfig    getTestConfig
 	// registryLogin is used to perform registry login.
-	registryLogin  registryLoginFunc
-	pushTestImages pushTestImages
+	registryLogin registryLoginFunc
 }
 
 func init() {
@@ -150,8 +140,8 @@ func TestMain(m *testing.M) {
 	}
 
 	// TODO(somtochiama): remove when tests have been updated to support GCP and AWS
-	if infraOpts.Provider != "azure" {
-		log.Fatal("only azure e2e tests are currently supported.")
+	if infraOpts.Provider != "azure" && infraOpts.Provider != "gcp" {
+		log.Fatal("only azure and gcp e2e tests are currently supported.")
 	}
 
 	exitVal, err := setup(m)
@@ -167,11 +157,6 @@ func setup(m *testing.M) (exitVal int, err error) {
 
 	// get provider specific configuration
 	providerCfg, err := getProviderConfig(infraOpts.Provider)
-
-	localImgs := map[string]string{
-		"podinfo:6.0.0": "ghcr.io/stefanprodan/podinfo:6.0.0",
-		"podinfo:6.0.1": "ghcr.io/stefanprodan/podinfo:6.0.1",
-	}
 
 	// Setup Terraform binary and init state
 	log.Printf("Setting up %s e2e test infrastructure", infraOpts.Provider)
@@ -206,12 +191,12 @@ func setup(m *testing.M) (exitVal int, err error) {
 		return 0, err
 	}
 
-	_, err = providerCfg.registryLogin(ctx, outputs)
+	testRegistry, err = providerCfg.registryLogin(ctx, outputs)
 	if err != nil {
 		return 0, err
 	}
 
-	testRepos, err = providerCfg.pushTestImages(ctx, localImgs, outputs)
+	err = pushTestImages(ctx, testRegistry, podinfoTags)
 	if err != nil {
 		return 0, err
 	}
@@ -227,10 +212,7 @@ func setup(m *testing.M) (exitVal int, err error) {
 		}
 	}()
 
-	err = installFlux(ctx, tmpDir, testEnv.Client, installArgs{
-		kubeconfigPath: kubeconfigPath,
-		secretData:     cfg.envCredsData,
-	})
+	err = installFlux(ctx, tmpDir, testEnv.Client, kubeconfigPath)
 	if err != nil {
 		return 1, fmt.Errorf("error installing Flux: %v", err)
 	}
@@ -254,9 +236,23 @@ func getProviderConfig(provider string) (*ProviderConfig, error) {
 			createKubeconfig: createKubeConfigAKS,
 			getTestConfig:    getTestConfigAKS,
 			registryLogin:    registryLoginACR,
-			pushTestImages:   pushTestImagesACR,
 		}, nil
 	default:
 		return nil, fmt.Errorf("provider '%s' is not supported", provider)
 	}
+}
+
+// pushTestImages pushes the local ghcr.io/stefanprodan/podinfo images to the remote repository specified
+// by repoURL. The image should be existing on the machine.
+func pushTestImages(ctx context.Context, repoURL string, tags []string) error {
+	localImg := "ghcr.io/stefanprodan/podinfo"
+	for _, tag := range tags {
+		remoteImg := fmt.Sprintf("%s/podinfo:%s", repoURL, tag)
+		err := tftestenv.RetagAndPush(ctx, fmt.Sprintf("%s:%s", localImg, tag), remoteImg)
+		if err != nil {
+			return err
+		}
+
+	}
+	return nil
 }

@@ -44,7 +44,6 @@ func getTestConfigAKS(ctx context.Context, outputs map[string]*tfjson.StateOutpu
 	applicationRepository := outputs["application_repository"].Value.(map[string]interface{})
 
 	eventHubSas := outputs["event_hub_sas"].Value.(string)
-
 	sharedSopsId := outputs["sops_id"].Value.(string)
 
 	kustomizeYaml := `
@@ -66,17 +65,6 @@ patchesStrategicMerge:
           env:
           - name: AZURE_AUTH_METHOD
             value: msi
-patches:
-- target:
-    version: v1
-    group: apps
-    kind: Deployment
-    name: image-reflector-controller
-    namespace: flux-system
-  patch: |-
-    - op: add
-      path: /spec/template/spec/containers/0/args/-
-      value: --azure-autologin-for-acr
 `
 
 	privateKeyFile, ok := os.LookupEnv("AZUREDEVOPS_SSH")
@@ -111,7 +99,6 @@ patches:
 			http: applicationRepository["http"].(string),
 			ssh:  applicationRepository["ssh"].(string),
 		},
-		registryURL:     outputs["acr_url"].Value.(string),
 		notificationURL: eventHubSas,
 		sopsArgs:        fmt.Sprintf("--azure-kv %s", sharedSopsId),
 		sopsSecretData: map[string]string{
@@ -133,34 +120,15 @@ patches:
 	return config, nil
 }
 
-// registryLoginACR logs into the container/artifact registries using the
-// provider's CLI tools and returns a list of test repositories.
-func registryLoginACR(ctx context.Context, output map[string]*tfjson.StateOutput) (map[string]string, error) {
+// registryLoginACR logs into the Azure Container Registries using the
+// provider's CLI tools and returns the test repositories.
+func registryLoginACR(ctx context.Context, output map[string]*tfjson.StateOutput) (string, error) {
 	// NOTE: ACR registry accept dynamic repository creation by just pushing a
 	// new image with a new repository name.
-	testRepos := map[string]string{}
-
 	registryURL := output["acr_url"].Value.(string)
 	if err := tftestenv.RegistryLoginACR(ctx, registryURL); err != nil {
-		return nil, err
-	}
-	testRepos["acr"] = registryURL
-
-	return testRepos, nil
-}
-
-func pushTestImagesACR(ctx context.Context, localImgs map[string]string, output map[string]*tfjson.StateOutput) (map[string]string, error) {
-	registryURL := output["acr_url"].Value.(string)
-	imgRepos := map[string]string{}
-	for name, localImg := range localImgs {
-		remoteImg := fmt.Sprintf("%s/%s", registryURL, name)
-		err := tftestenv.RetagAndPush(ctx, localImg, remoteImg)
-		if err != nil {
-			return nil, err
-		}
-
-		imgRepos[name] = remoteImg
+		return "", err
 	}
 
-	return imgRepos, nil
+	return registryURL, nil
 }

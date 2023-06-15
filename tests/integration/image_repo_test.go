@@ -42,12 +42,7 @@ func TestImageRepositoryAndAutomation(t *testing.T) {
 	ctx := context.TODO()
 	name := "image-repository-" + randStringRunes(5)
 
-	fullImageURL, ok := testRepos["podinfo:6.0.0"]
-	if !ok {
-		t.Fatal("no image present for podinfo")
-	}
-	imgArr := strings.Split(fullImageURL, ":")
-	imageURL := imgArr[0]
+	imageURL := fmt.Sprintf("%s/podinfo", testRegistry)
 
 	manifest := fmt.Sprintf(`apiVersion: apps/v1
 kind: Deployment
@@ -65,7 +60,7 @@ spec:
     spec:
       containers:
       - name: podinfod
-        image: %s # {"$imagepolicy": "%s:podinfo"}
+        image: %s:%s # {"$imagepolicy": "%s:podinfo"}
         readinessProbe:
           exec:
             command:
@@ -75,15 +70,14 @@ spec:
             - localhost:9898/readyz
           initialDelaySeconds: 5
           timeoutSeconds: 5
-`, name, fullImageURL, name)
+`, name, imageURL, oldVersion, name)
 
 	repoUrl := getTransportURL(cfg.applicationRepository)
-	tmpDir := t.TempDir()
-	client, err := getRepository(ctx, tmpDir, repoUrl, defaultBranch, cfg.defaultAuthOpts)
+	client, err := getRepository(ctx, t.TempDir(), repoUrl, defaultBranch, cfg.defaultAuthOpts)
 	g.Expect(err).ToNot(HaveOccurred())
 	files := make(map[string]io.Reader)
 	files[name+"/podinfo.yaml"] = strings.NewReader(manifest)
-	g.Expect(err).ToNot(HaveOccurred())
+
 	err = commitAndPushAll(ctx, client, files, name)
 	g.Expect(err).ToNot(HaveOccurred())
 
@@ -114,6 +108,7 @@ spec:
 			Interval: metav1.Duration{
 				Duration: 1 * time.Minute,
 			},
+			Provider: infraOpts.Provider,
 		}
 		return nil
 	})

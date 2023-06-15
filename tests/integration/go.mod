@@ -13,7 +13,6 @@ require (
 	github.com/fluxcd/pkg/apis/meta v1.1.0
 	github.com/fluxcd/pkg/git v0.12.2
 	github.com/fluxcd/pkg/git/gogit v0.12.0
-	github.com/fluxcd/pkg/ssh v0.7.4
 	github.com/fluxcd/source-controller/api v1.0.0-rc.5
 	github.com/fluxcd/test-infra/tftestenv v0.0.0-20230531151340-931581bd0a3e
 	github.com/go-git/go-git/v5 v5.7.0
@@ -23,7 +22,6 @@ require (
 	github.com/onsi/gomega v1.27.7
 	github.com/stretchr/testify v1.8.2
 	github.com/whilp/git-urls v1.0.0
-	golang.org/x/crypto v0.9.0
 	k8s.io/api v0.27.2
 	k8s.io/apimachinery v0.27.2
 	k8s.io/client-go v0.27.2
@@ -61,6 +59,7 @@ require (
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
 	github.com/fluxcd/pkg/apis/acl v0.1.0 // indirect
 	github.com/fluxcd/pkg/apis/kustomize v1.1.0 // indirect
+	github.com/fluxcd/pkg/ssh v0.7.4 // indirect
 	github.com/fluxcd/pkg/version v0.2.2 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.4.1 // indirect
@@ -109,6 +108,7 @@ require (
 	github.com/zclconf/go-cty v1.13.0 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
 	go.uber.org/multierr v1.8.0 // indirect
+	golang.org/x/crypto v0.9.0 // indirect
 	golang.org/x/mod v0.10.0 // indirect
 	golang.org/x/net v0.10.0 // indirect
 	golang.org/x/oauth2 v0.6.0 // indirect
