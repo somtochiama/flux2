@@ -1,10 +1,10 @@
-output "kubeconfig" {
+output "aks_kubeconfig" {
   description = "kubeconfig of the created AKS cluster"
   value       = module.aks.kubeconfig
   sensitive   = true
 }
 
-output "shared_pat" {
+output "azure_devops_access_token" {
   sensitive = true
   value     = var.azuredevops_pat
 }

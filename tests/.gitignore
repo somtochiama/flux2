@@ -5,10 +5,10 @@
 ### Terraform ###
 # Local .terraform directories
 **/.terraform/*
-build/
+*.terraform.lock.hcl
 
-# terraform lock file for new e2e tests
-integration/terraform/azure/.terraform.lock.hcl
+# test files
+build/
 
 # .tfstate files
 *.tfstate

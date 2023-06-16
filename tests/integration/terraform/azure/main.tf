@@ -31,5 +31,5 @@ resource "random_pet" "suffix" {
 }
 
 locals {
-  name_suffix = "e2e-${random_pet.suffix.id}"
+  name = "e2e${random_pet.suffix.id}"
 }

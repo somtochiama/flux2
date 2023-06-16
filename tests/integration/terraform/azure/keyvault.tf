@@ -1,9 +1,10 @@
 resource "azurerm_key_vault" "this" {
-  name                = "kv-${random_pet.suffix.id}"
+  name                = local.name
   resource_group_name = module.aks.resource_group
   location            = var.azure_location
   tenant_id           = data.azurerm_client_config.current.tenant_id
   sku_name            = "standard"
+  tags                = var.tags
 }
 
 resource "azurerm_key_vault_access_policy" "admin" {

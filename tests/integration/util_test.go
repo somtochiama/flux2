@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package test
+package integration
 
 import (
 	"context"
@@ -39,7 +39,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
 	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1"
 	"github.com/fluxcd/pkg/apis/meta"
@@ -74,23 +74,9 @@ func installFlux(ctx context.Context, tmpDir string, kubeClient client.Client, k
 			Name: "flux-system",
 		},
 	}
-	_, err := controllerutil.CreateOrUpdate(ctx, kubeClient, &namespace, func() error {
-		return nil
-	})
+	err := kubeClient.Create(ctx, &namespace)
 	if err != nil {
 		return err
-	}
-
-	// Create additional secrets that are needed for flux to run correctly
-	if cfg.envCredsData != nil {
-		envCreds := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "env-creds", Namespace: "flux-system"}}
-		_, err = controllerutil.CreateOrUpdate(ctx, kubeClient, envCreds, func() error {
-			envCreds.StringData = cfg.envCredsData
-			return nil
-		})
-		if err != nil {
-			return err
-		}
 	}
 
 	repoURL := getTransportURL(cfg.fleetInfraRepository)
@@ -151,22 +137,24 @@ func verifyGitAndKustomization(ctx context.Context, kubeClient client.Client, na
 	if err := kubeClient.Get(ctx, nn, source); err != nil {
 		return err
 	}
-	if apimeta.IsStatusConditionPresentAndEqual(source.Status.Conditions, meta.ReadyCondition, metav1.ConditionTrue) == false {
-		return fmt.Errorf("source condition not ready")
+	if err := checkReadyCondition(source.Status.Conditions, meta.ReadyCondition); err != nil {
+		return err
 	}
 
 	kustomization := &kustomizev1.Kustomization{}
 	if err := kubeClient.Get(ctx, nn, kustomization); err != nil {
 		return err
 	}
-	if apimeta.IsStatusConditionPresentAndEqual(kustomization.Status.Conditions, meta.ReadyCondition, metav1.ConditionTrue) == false {
-		return fmt.Errorf("kustomization condition not ready")
+	if err := checkReadyCondition(kustomization.Status.Conditions, meta.ReadyCondition); err != nil {
+		return err
 	}
+
 	return nil
 }
 
 type nsConfig struct {
 	repoURL       string
+	branch        string
 	protocol      git.TransportType
 	objectName    string
 	path          string
@@ -174,12 +162,16 @@ type nsConfig struct {
 	modifyKsSpec  func(spec *kustomizev1.KustomizationSpec)
 }
 
-// setupNamespaces creates the namespace, then creates the git secret,
+// setUpFluxConfigs creates the namespace, then creates the git secret,
 // git repository and kustomization in that namespace
-func setupNamespace(ctx context.Context, name string, opts nsConfig) error {
+func setUpFluxConfig(ctx context.Context, name string, opts nsConfig) error {
 	transport := cfg.defaultGitTransport
 	if opts.protocol != "" {
 		transport = opts.protocol
+	}
+
+	if opts.branch == "" {
+		opts.branch = name
 	}
 
 	namespace := corev1.Namespace{
@@ -187,10 +179,7 @@ func setupNamespace(ctx context.Context, name string, opts nsConfig) error {
 			Name: name,
 		},
 	}
-	_, err := controllerutil.CreateOrUpdate(ctx, testEnv.Client, &namespace, func() error {
-		return nil
-	})
-	if err != nil {
+	if err := testEnv.Create(ctx, &namespace); err != nil && !apierrors.IsAlreadyExists(err) {
 		return err
 	}
 
@@ -201,24 +190,19 @@ func setupNamespace(ctx context.Context, name string, opts nsConfig) error {
 		},
 	}
 
-	secretData := map[string]string{
+	secret.StringData = map[string]string{
 		"username": "git",
 		"password": cfg.gitPat,
 	}
 
 	if transport == git.SSH {
-		secretData = map[string]string{
+		secret.StringData = map[string]string{
 			"identity":     cfg.gitPrivateKey,
 			"identity.pub": cfg.gitPublicKey,
 			"known_hosts":  cfg.knownHosts,
 		}
 	}
-
-	_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, &secret, func() error {
-		secret.StringData = secretData
-		return nil
-	})
-	if err != nil {
+	if err := testEnv.Create(ctx, &secret); err != nil {
 		return err
 	}
 
@@ -227,7 +211,7 @@ func setupNamespace(ctx context.Context, name string, opts nsConfig) error {
 			Duration: 1 * time.Minute,
 		},
 		Reference: &sourcev1.GitRepositoryRef{
-			Branch: name,
+			Branch: opts.branch,
 		},
 		SecretRef: &meta.LocalObjectReference{
 			Name: secret.Name,
@@ -237,12 +221,11 @@ func setupNamespace(ctx context.Context, name string, opts nsConfig) error {
 	if opts.modifyGitSpec != nil {
 		opts.modifyGitSpec(gitSpec)
 	}
-	source := &sourcev1.GitRepository{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace.Name}}
-	_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, source, func() error {
-		source.Spec = *gitSpec
-		return nil
-	})
-	if err != nil {
+	source := &sourcev1.GitRepository{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace.Name},
+		Spec:       *gitSpec,
+	}
+	if err := testEnv.Create(ctx, source); err != nil {
 		return err
 	}
 
@@ -262,24 +245,24 @@ func setupNamespace(ctx context.Context, name string, opts nsConfig) error {
 	if opts.modifyKsSpec != nil {
 		opts.modifyKsSpec(ksSpec)
 	}
-	kustomization := &kustomizev1.Kustomization{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace.Name}}
-	_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, kustomization, func() error {
-		kustomization.Spec = *ksSpec
-		return nil
-	})
-	return err
+	kustomization := &kustomizev1.Kustomization{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace.Name},
+		Spec:       *ksSpec,
+	}
+
+	return testEnv.Create(ctx, kustomization)
 }
 
-func deleteNamespace(ctx context.Context, name string) error {
+func tearDownFluxConfig(ctx context.Context, name string) error {
 	var allErr []error
 
 	source := &sourcev1.GitRepository{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: name}}
-	if err := testEnv.Client.Delete(ctx, source); err != nil {
+	if err := testEnv.Delete(ctx, source); err != nil {
 		allErr = append(allErr, err)
 	}
 
 	kustomization := &kustomizev1.Kustomization{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: name}}
-	if err := testEnv.Client.Delete(ctx, kustomization); err != nil {
+	if err := testEnv.Delete(ctx, kustomization); err != nil {
 		allErr = append(allErr, err)
 	}
 
@@ -288,7 +271,7 @@ func deleteNamespace(ctx context.Context, name string) error {
 			Name: name,
 		},
 	}
-	if err := testEnv.Client.Delete(ctx, &namespace); err != nil {
+	if err := testEnv.Delete(ctx, &namespace); err != nil {
 		allErr = append(allErr, err)
 	}
 
@@ -451,4 +434,19 @@ func randStringRunes(n int) string {
 		b[i] = letterRunes[rand1.Intn(len(letterRunes))]
 	}
 	return string(b)
+}
+
+// checkReadyCondition checks for a Ready condition, it returns nil if the condition is true
+// or an error (with the message if the Ready condition is present).
+func checkReadyCondition(conditions []metav1.Condition, condType string) error {
+	cond := apimeta.FindStatusCondition(conditions, condType)
+	if cond == nil || cond.Status != metav1.ConditionTrue {
+		errorMsg := "condition not ready"
+		if cond != nil {
+			errorMsg = errorMsg + ": " + cond.Message
+		}
+		return fmt.Errorf(errorMsg)
+	}
+
+	return nil
 }

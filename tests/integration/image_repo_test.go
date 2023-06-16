@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package test
+package integration
 
 import (
 	"bytes"
@@ -29,7 +29,6 @@ import (
 
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	automationv1beta1 "github.com/fluxcd/image-automation-controller/api/v1beta1"
 	reflectorv1beta2 "github.com/fluxcd/image-reflector-controller/api/v1beta2"
@@ -40,15 +39,15 @@ import (
 func TestImageRepositoryAndAutomation(t *testing.T) {
 	g := NewWithT(t)
 	ctx := context.TODO()
-	name := "image-repository-" + randStringRunes(5)
-
+	branchName := "image-repository"
+	testID := branchName + "-" + randStringRunes(5)
 	imageURL := fmt.Sprintf("%s/podinfo", testRegistry)
 
 	manifest := fmt.Sprintf(`apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: podinfo
-  namespace: %s
+  namespace: %[1]s
 spec:
   selector:
     matchLabels:
@@ -60,7 +59,7 @@ spec:
     spec:
       containers:
       - name: podinfod
-        image: %s:%s # {"$imagepolicy": "%s:podinfo"}
+        image: %[2]s:%[3]s # {"$imagepolicy": "%[1]s:podinfo"}
         readinessProbe:
           exec:
             command:
@@ -70,59 +69,55 @@ spec:
             - localhost:9898/readyz
           initialDelaySeconds: 5
           timeoutSeconds: 5
-`, name, imageURL, oldVersion, name)
+`, testID, imageURL, oldVersion)
 
 	repoUrl := getTransportURL(cfg.applicationRepository)
 	client, err := getRepository(ctx, t.TempDir(), repoUrl, defaultBranch, cfg.defaultAuthOpts)
 	g.Expect(err).ToNot(HaveOccurred())
 	files := make(map[string]io.Reader)
-	files[name+"/podinfo.yaml"] = strings.NewReader(manifest)
+	files[testID+"/podinfo.yaml"] = strings.NewReader(manifest)
 
-	err = commitAndPushAll(ctx, client, files, name)
+	err = commitAndPushAll(ctx, client, files, branchName)
 	g.Expect(err).ToNot(HaveOccurred())
 
-	err = setupNamespace(ctx, name, nsConfig{
+	err = setUpFluxConfig(ctx, testID, nsConfig{
 		repoURL: repoUrl,
-		path:    name,
+		path:    testID,
+		branch:  branchName,
 	})
 	g.Expect(err).ToNot(HaveOccurred())
-	defer deleteNamespace(ctx, name)
+	defer tearDownFluxConfig(ctx, testID)
 
 	g.Eventually(func() bool {
-		err := verifyGitAndKustomization(ctx, testEnv.Client, name, name)
+		err := verifyGitAndKustomization(ctx, testEnv.Client, testID, testID)
 		if err != nil {
 			return false
 		}
 		return true
-	}, 60*time.Second, 5*time.Second).Should(BeTrue())
+	}, testTimeout, testInterval).Should(BeTrue())
 
 	imageRepository := reflectorv1beta2.ImageRepository{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "podinfo",
-			Namespace: name,
+			Namespace: testID,
 		},
-	}
-	_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, &imageRepository, func() error {
-		imageRepository.Spec = reflectorv1beta2.ImageRepositorySpec{
+		Spec: reflectorv1beta2.ImageRepositorySpec{
 			Image: imageURL,
 			Interval: metav1.Duration{
 				Duration: 1 * time.Minute,
 			},
 			Provider: infraOpts.Provider,
-		}
-		return nil
-	})
-	g.Expect(err).ToNot(HaveOccurred())
-	defer testEnv.Client.Delete(ctx, &imageRepository)
+		},
+	}
+	g.Expect(testEnv.Create(ctx, &imageRepository)).To(Succeed())
+	defer testEnv.Delete(ctx, &imageRepository)
 
 	imagePolicy := reflectorv1beta2.ImagePolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "podinfo",
-			Namespace: name,
+			Namespace: testID,
 		},
-	}
-	_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, &imagePolicy, func() error {
-		imagePolicy.Spec = reflectorv1beta2.ImagePolicySpec{
+		Spec: reflectorv1beta2.ImagePolicySpec{
 			ImageRepositoryRef: meta.NamespacedObjectReference{
 				Name: imageRepository.Name,
 			},
@@ -131,31 +126,28 @@ spec:
 					Range: "6.0.x",
 				},
 			},
-		}
-		return nil
-	})
-	g.Expect(err).ToNot(HaveOccurred())
-	defer testEnv.Client.Delete(ctx, &imagePolicy)
+		},
+	}
+	g.Expect(testEnv.Create(ctx, &imagePolicy)).To(Succeed())
+	defer testEnv.Delete(ctx, &imagePolicy)
 
 	imageAutomation := automationv1beta1.ImageUpdateAutomation{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "podinfo",
-			Namespace: name,
+			Namespace: testID,
 		},
-	}
-	_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, &imageAutomation, func() error {
-		imageAutomation.Spec = automationv1beta1.ImageUpdateAutomationSpec{
+		Spec: automationv1beta1.ImageUpdateAutomationSpec{
 			Interval: metav1.Duration{
 				Duration: 1 * time.Minute,
 			},
 			SourceRef: automationv1beta1.CrossNamespaceSourceReference{
 				Kind: "GitRepository",
-				Name: name,
+				Name: testID,
 			},
 			GitSpec: &automationv1beta1.GitSpec{
 				Checkout: &automationv1beta1.GitCheckoutSpec{
 					Reference: sourcev1.GitRepositoryRef{
-						Branch: name,
+						Branch: branchName,
 					},
 				},
 				Commit: automationv1beta1.CommitSpec{
@@ -166,23 +158,22 @@ spec:
 				},
 			},
 			Update: &automationv1beta1.UpdateStrategy{
-				Path:     name,
+				Path:     testID,
 				Strategy: automationv1beta1.UpdateStrategySetters,
 			},
-		}
-		return nil
-	})
-	g.Expect(err).ToNot(HaveOccurred())
-	defer testEnv.Client.Delete(ctx, &imageAutomation)
+		},
+	}
+	g.Expect(testEnv.Create(ctx, &imageAutomation)).To(Succeed())
+	defer testEnv.Delete(ctx, &imageAutomation)
 
 	// Wait for image repository to be ready
 	g.Eventually(func() bool {
-		client, err := getRepository(ctx, t.TempDir(), repoUrl, name, cfg.defaultAuthOpts)
+		client, err := getRepository(ctx, t.TempDir(), repoUrl, branchName, cfg.defaultAuthOpts)
 		if err != nil {
 			return false
 		}
 
-		b, err := os.ReadFile(filepath.Join(client.Path(), name, "podinfo.yaml"))
+		b, err := os.ReadFile(filepath.Join(client.Path(), testID, "podinfo.yaml"))
 		if err != nil {
 			return false
 		}
@@ -190,5 +181,5 @@ spec:
 			return false
 		}
 		return true
-	}, 120*time.Second, 5*time.Second).Should(BeTrue())
+	}, testTimeout, testInterval).Should(BeTrue())
 }

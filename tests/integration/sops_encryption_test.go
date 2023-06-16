@@ -14,24 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package test
+package integration
 
 import (
 	"context"
 	"fmt"
-	"log"
-
 	"io"
+	"log"
 	"os"
 	"testing"
-	"time"
 
 	. "github.com/onsi/gomega"
-	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1"
 	"github.com/fluxcd/pkg/apis/meta"
@@ -41,7 +37,8 @@ import (
 func TestKeyVaultSops(t *testing.T) {
 	g := NewWithT(t)
 	ctx := context.TODO()
-	name := "key-vault-" + randStringRunes(5)
+	branchName := "key-vault"
+	testID := branchName + "-" + randStringRunes(5)
 	secretYaml := `apiVersion: v1
 kind: Secret
 metadata:
@@ -53,23 +50,30 @@ stringData:
 	tmpDir := t.TempDir()
 	client, err := getRepository(ctx, tmpDir, repoUrl, defaultBranch, cfg.defaultAuthOpts)
 	g.Expect(err).ToNot(HaveOccurred())
-	err = tftestenv.RunCommand(ctx, client.Path(), "mkdir -p ./key-vault-sops", tftestenv.RunCommandOptions{})
+
+	dir := client.Path() + "/key-vault-sops"
+	g.Expect(os.Mkdir(dir, 0o700)).To(Succeed())
+
+	filename := dir + "secret.enc.yaml"
+	f, err := os.Create(filename)
 	g.Expect(err).ToNot(HaveOccurred())
-	err = tftestenv.RunCommand(ctx, client.Path(),
-		fmt.Sprintf("echo \"%s\" > ./key-vault-sops/secret.enc.yaml", secretYaml),
-		tftestenv.RunCommandOptions{})
+	defer f.Close()
+
+	_, err = f.Write([]byte(secretYaml))
 	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(f.Sync()).To(Succeed())
+
 	err = tftestenv.RunCommand(ctx, client.Path(),
-		fmt.Sprintf("sops --encrypt --encrypted-regex '^(data|stringData)$' %s --in-place ./key-vault-sops/secret.enc.yaml", cfg.sopsArgs),
+		fmt.Sprintf("sops --encrypt --encrypted-regex '^(data|stringData)$' %s --in-place %s", cfg.sopsArgs, filename),
 		tftestenv.RunCommandOptions{})
 	g.Expect(err).ToNot(HaveOccurred())
 
-	r, err := os.Open(fmt.Sprintf("%s/key-vault-sops/secret.enc.yaml", client.Path()))
-	require.NoError(t, err)
+	r, err := os.Open(filename)
+	g.Expect(err).ToNot(HaveOccurred())
 
 	files := make(map[string]io.Reader)
 	files["key-vault-sops/secret.enc.yaml"] = r
-	err = commitAndPushAll(ctx, client, files, name)
+	err = commitAndPushAll(ctx, client, files, branchName)
 	g.Expect(err).ToNot(HaveOccurred())
 
 	modifyKsSpec := func(spec *kustomizev1.KustomizationSpec) {
@@ -83,7 +87,8 @@ stringData:
 		}
 	}
 
-	err = setupNamespace(ctx, name, nsConfig{
+	err = setUpFluxConfig(ctx, testID, nsConfig{
+		branch:       branchName,
 		repoURL:      repoUrl,
 		path:         "./key-vault-sops",
 		modifyKsSpec: modifyKsSpec,
@@ -91,9 +96,9 @@ stringData:
 	})
 	g.Expect(err).ToNot(HaveOccurred())
 	t.Cleanup(func() {
-		err := deleteNamespace(ctx, name)
+		err := tearDownFluxConfig(ctx, testID)
 		if err != nil {
-			log.Printf("failed to delete resources in '%s' namespace", name)
+			log.Printf("failed to delete resources in '%s' namespace", testID)
 		}
 	})
 
@@ -101,26 +106,22 @@ stringData:
 		secret := corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "sops-keys",
-				Namespace: name,
+				Namespace: testID,
 			},
+			StringData: cfg.sopsSecretData,
 		}
-
-		_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, &secret, func() error {
-			secret.StringData = cfg.sopsSecretData
-			return nil
-		})
-
-		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(testEnv.Create(ctx, &secret)).To(Succeed())
+		defer testEnv.Delete(ctx, &secret)
 	}
 
 	g.Eventually(func() bool {
-		err := verifyGitAndKustomization(ctx, testEnv.Client, name, name)
+		err := verifyGitAndKustomization(ctx, testEnv.Client, testID, testID)
 		if err != nil {
 			return false
 		}
-		nn := types.NamespacedName{Name: "test", Namespace: name}
+		nn := types.NamespacedName{Name: "test", Namespace: testID}
 		secret := &corev1.Secret{}
-		err = testEnv.Client.Get(ctx, nn, secret)
+		err = testEnv.Get(ctx, nn, secret)
 		if err != nil {
 			return false
 		}
@@ -130,5 +131,5 @@ stringData:
 		}
 
 		return false
-	}, 120*time.Second, 5*time.Second).Should(BeTrue())
+	}, testTimeout, testInterval).Should(BeTrue())
 }

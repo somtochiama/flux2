@@ -24,9 +24,22 @@ The [azure](./terraform/azure) Terraform creates the AKS cluster and related res
 
 ### Requirements
 
-- Azure account with an active subscription to be able to create AKS and ACR, and permission to assign roles. Role assignment is required for allowing AKS workloads to access ACR.
-- Azure CLI, need to be logged in using `az login`.
-- An Azure DevOps organization, personal access token and ssh keys for accessing repositories within the organization. The scope required for the personal access token is:
+- Azure account with an active subscription to be able to create AKS and ACR,
+  and permission to assign roles. Role assignment is required for allowing AKS workloads to access ACR.
+- For authentication for azure: Azure CLI, need to be logged in using `az login` as a User or as a Service Principal
+- For authentication with terraform:
+  When using a service principal, you need to set the `ARM-*` variables specified `.env.sample`  because authenticating
+  terraform with `az login` only works as a User, using a Service Principal leads to the following error:
+  > 
+  Terraform will use those variables for authentication instead of the CLI.
+  To use a service principal,(for example in CI environment)  In addition to authenticating Azure CLI you have to set  ARM-* variables in `.env.sample`  and source it
+  ```shell
+  # set ARM-* variables
+  # we still need to log in to (for ACR auth)
+  az login --service-principal -u $ARM_CLIENT_ID -p $ARM_CLIENT_SECRET --tenant $ARM_TENANT_ID
+  ```
+- An Azure DevOps organization, personal access token and ssh keys for accessing repositories
+  within the organization. The scope required for the personal access token is:
   - `Project and Team` - read, write and manage access
   - `Code` - Full
   - Please take a look at the [terraform provider](https://registry.terraform.io/providers/microsoft/azuredevops/latest/docs/guides/authenticating_using_the_personal_access_token#create-a-personal-access-token)
@@ -34,26 +47,6 @@ The [azure](./terraform/azure) Terraform creates the AKS cluster and related res
   - Azure DevOps only supports RSA. keys Please see
     [documentation](https://learn.microsoft.com/en-us/azure/devops/repos/git/use-ssh-keys-to-authenticate?view=azure-devops#set-up-ssh-key-authentication)
     for how to set up SSH key authentication.
-
-## GCP
-
-### Architecture
-
-The [gcp](./terraform/gcp) terraform files create the GKE cluster and related resources to run the tests. It creates:
-- An Google Container Registry and Artifact Registry
-- An Google Kubernetes Cluster
-- Two Google Cloud Source Repositories
-
-Note: It doesn't create Google KMS keyrings and crypto keys because these cannot be destroyed. Instead, you have
-to pass in the crypto key and keyring that would be used to test the sops encryption in Flux. Please see `.env.sample`
-for the terraform variables
-
-### Requirements
-
-- GCP account with an active project to be able to create GKE and GCR, and permission to assign roles.
-- Existing GCP KMS keyring and crypto key.
-- `gcloud` CLI, need to be logged in using `gcloud auth login`.
-- Register SSH Keys with Google Cloud. # add docs
 
 ## Tests
 

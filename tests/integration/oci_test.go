@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package test
+package integration
 
 import (
 	"context"
@@ -28,8 +28,8 @@ import (
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
+	helmv2 "github.com/fluxcd/helm-controller/api/v2beta1"
 	"github.com/fluxcd/pkg/apis/meta"
 	sourcev1 "github.com/fluxcd/source-controller/api/v1beta2"
 )
@@ -39,43 +39,40 @@ func TestOCIHelmRelease(t *testing.T) {
 	ctx := context.TODO()
 
 	// Create namespace for test
-	name := "oci-helm-" + randStringRunes(5)
+	testID := "oci-helm-" + randStringRunes(5)
 	namespace := corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
+			Name: testID,
 		},
 	}
-	_, err := controllerutil.CreateOrUpdate(ctx, testEnv.Client, &namespace, func() error {
-		return nil
-	})
-	g.Expect(err).ToNot(HaveOccurred())
-	defer testEnv.Client.Delete(ctx, &namespace)
+	g.Expect(testEnv.Create(ctx, &namespace)).To(Succeed())
+	defer testEnv.Delete(ctx, &namespace)
 
 	repoURL := fmt.Sprintf("%s/charts/podinfo", testRegistry)
-	err = pushImagesFromURL(repoURL, "ghcr.io/stefanprodan/charts/podinfo:6.2.0", []string{"v0.0.1"})
+	err := pushImagesFromURL(repoURL, "ghcr.io/stefanprodan/charts/podinfo:6.2.0", []string{"6.2.0"})
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// Create HelmRepository and wait for it to sync
-	helmRepository := sourcev1.HelmRepository{ObjectMeta: metav1.ObjectMeta{Name: namespace.Name, Namespace: namespace.Name}}
-	_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, &helmRepository, func() error {
-		helmRepository.Spec = sourcev1.HelmRepositorySpec{
-			URL: fmt.Sprintf("oci://%s", repoURL),
+	helmRepository := sourcev1.HelmRepository{
+		ObjectMeta: metav1.ObjectMeta{Name: testID, Namespace: testID},
+		Spec: sourcev1.HelmRepositorySpec{
+			URL: fmt.Sprintf("oci://%s", testRegistry),
 			Interval: metav1.Duration{
 				Duration: 5 * time.Minute,
 			},
 			Provider:        infraOpts.Provider,
 			PassCredentials: true,
 			Type:            "oci",
-		}
-		return nil
-	})
-	g.Expect(err).ToNot(HaveOccurred())
-	defer testEnv.Client.Delete(ctx, &helmRepository)
+		},
+	}
+
+	g.Expect(testEnv.Create(ctx, &helmRepository)).To(Succeed())
+	defer testEnv.Delete(ctx, &helmRepository)
 
 	g.Eventually(func() bool {
 		obj := &sourcev1.HelmRepository{}
 		nn := types.NamespacedName{Name: helmRepository.Name, Namespace: helmRepository.Namespace}
-		err := testEnv.Client.Get(ctx, nn, obj)
+		err := testEnv.Get(ctx, nn, obj)
 		if err != nil {
 			log.Printf("error getting helm repository %s\n", err.Error())
 			return false
@@ -85,5 +82,59 @@ func TestOCIHelmRelease(t *testing.T) {
 			return false
 		}
 		return true
-	}, 30*time.Second, 5*time.Second).Should(BeTrue())
+	}, testTimeout, testInterval).Should(BeTrue())
+
+	// create helm release
+	helmRelease := helmv2.HelmRelease{
+		ObjectMeta: metav1.ObjectMeta{Name: testID, Namespace: testID},
+		Spec: helmv2.HelmReleaseSpec{
+			Chart: helmv2.HelmChartTemplate{
+				Spec: helmv2.HelmChartTemplateSpec{
+					Interval: &metav1.Duration{
+						Duration: 10 * time.Minute,
+					},
+					Chart:   "charts/podinfo",
+					Version: "6.2.0",
+					SourceRef: helmv2.CrossNamespaceObjectReference{
+						Kind:      sourcev1.HelmRepositoryKind,
+						Name:      helmRepository.Name,
+						Namespace: helmRepository.Namespace,
+					},
+				},
+			},
+		},
+	}
+
+	g.Expect(testEnv.Create(ctx, &helmRelease)).To(Succeed())
+	defer testEnv.Delete(ctx, &helmRelease)
+
+	g.Eventually(func() bool {
+		chart := sourcev1.HelmChart{}
+		nn := types.NamespacedName{
+			Name:      fmt.Sprintf("%s-%s", helmRelease.Name, helmRelease.Namespace),
+			Namespace: helmRelease.Namespace,
+		}
+		if err := testEnv.Get(ctx, nn, &chart); err != nil {
+			log.Printf("error getting helm chart %s\n", err.Error())
+			return false
+		}
+		if err := checkReadyCondition(chart.Status.Conditions, meta.ReadyCondition); err != nil {
+			log.Println(err)
+			return false
+		}
+
+		obj := &helmv2.HelmRelease{}
+		nn = types.NamespacedName{Name: helmRelease.Name, Namespace: helmRelease.Namespace}
+		if err := testEnv.Get(ctx, nn, obj); err != nil {
+			log.Printf("error getting helm release %s\n", err.Error())
+			return false
+		}
+
+		if err := checkReadyCondition(obj.Status.Conditions, meta.ReadyCondition); err != nil {
+			log.Println(err)
+			return false
+		}
+
+		return true
+	}, testTimeout, testInterval).Should(BeTrue())
 }

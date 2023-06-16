@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package test
+package integration
 
 import (
 	"context"
@@ -32,7 +32,7 @@ const (
 // createKubeConfigAKS constructs kubeconfig for an AKS cluster from the
 // terraform state output at the given kubeconfig path.
 func createKubeConfigAKS(ctx context.Context, state map[string]*tfjson.StateOutput, kcPath string) error {
-	kubeconfigYaml, ok := state["kubeconfig"].Value.(string)
+	kubeconfigYaml, ok := state["aks_kubeconfig"].Value.(string)
 	if !ok || kubeconfigYaml == "" {
 		return fmt.Errorf("failed to obtain kubeconfig from tf output")
 	}
@@ -87,7 +87,7 @@ patchesStrategicMerge:
 
 	config := &testConfig{
 		gitUsername:   "git",
-		gitPat:        outputs["shared_pat"].Value.(string),
+		gitPat:        outputs["azure_devops_access_token"].Value.(string),
 		gitPrivateKey: string(privateKeyData),
 		gitPublicKey:  string(pubKeyData),
 		knownHosts:    azureDevOpsKnownHosts,

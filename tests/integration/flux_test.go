@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package test
+package integration
 
 import (
 	"context"
@@ -130,11 +130,11 @@ func TestRepositoryCloning(t *testing.T) {
 				url = cfg.applicationRepository.ssh
 			}
 
-			nsName := fmt.Sprintf("%s-%s", tt.name, randStringRunes(5))
-			err := setupNamespace(ctx, nsName, nsConfig{
+			testID := fmt.Sprintf("%s-%s", tt.name, randStringRunes(5))
+			err := setUpFluxConfig(ctx, testID, nsConfig{
 				repoURL:    url,
 				protocol:   tt.cloneType,
-				objectName: nsName,
+				objectName: testID,
 				path:       fmt.Sprintf("./cloning-test/%s", tt.name),
 				modifyGitSpec: func(spec *sourcev1.GitRepositorySpec) {
 					spec.Reference = ref
@@ -142,14 +142,14 @@ func TestRepositoryCloning(t *testing.T) {
 			})
 			g.Expect(err).ToNot(HaveOccurred())
 			t.Cleanup(func() {
-				err := deleteNamespace(ctx, nsName)
+				err := tearDownFluxConfig(ctx, testID)
 				if err != nil {
 					log.Printf("failed to delete resources in '%s' namespace: %s", tt.name, err)
 				}
 			})
 
 			g.Eventually(func() bool {
-				err := verifyGitAndKustomization(ctx, testEnv.Client, nsName, nsName)
+				err := verifyGitAndKustomization(ctx, testEnv.Client, testID, testID)
 				if err != nil {
 					return false
 				}
@@ -158,9 +158,9 @@ func TestRepositoryCloning(t *testing.T) {
 
 			// Wait for configmap to be deployed
 			g.Eventually(func() bool {
-				nn := types.NamespacedName{Name: "foobar", Namespace: nsName}
+				nn := types.NamespacedName{Name: "foobar", Namespace: testID}
 				cm := &corev1.ConfigMap{}
-				err = testEnv.Client.Get(ctx, nn, cm)
+				err = testEnv.Get(ctx, nn, cm)
 				if err != nil {
 					return false
 				}

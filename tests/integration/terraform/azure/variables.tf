@@ -9,7 +9,7 @@ variable "azure_location" {
   default     = "eastus"
 }
 
-variable "azure_tags" {
+variable "tags" {
   type        = map(string)
   default     = {}
   description = "Tags for created Azure resources"

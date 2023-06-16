@@ -1,3 +1,5 @@
+//go:build azure
+
 /*
 Copyright 2023 The Flux authors
 
@@ -14,13 +16,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package test
+package integration
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"strings"
 	"testing"
 	"time"
@@ -35,7 +38,6 @@ import (
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1"
 	notiv1 "github.com/fluxcd/notification-controller/api/v1"
@@ -44,16 +46,12 @@ import (
 	"github.com/fluxcd/pkg/apis/meta"
 )
 
-func TestNotification(t *testing.T) {
+func TestEventHubNotification(t *testing.T) {
 	g := NewWithT(t)
-	// Currently, only azuredevops is supported
-	if infraOpts.Provider != "azure" {
-		fmt.Printf("Skipping Event notification tests for %s as it is not supported.\n", infraOpts.Provider)
-		return
-	}
 
 	ctx := context.TODO()
-	name := "test-notification-" + randStringRunes(5)
+	branchName := "test-notification"
+	testID := branchName + "-" + randStringRunes(5)
 
 	// Start listening to eventhub with latest offset
 	// TODO(somtochiama): Make here provider agnostic
@@ -80,81 +78,70 @@ metadata:
 	g.Expect(err).ToNot(HaveOccurred())
 	files := make(map[string]io.Reader)
 	files["configmap.yaml"] = strings.NewReader(manifest)
-	err = commitAndPushAll(ctx, client, files, name)
+	err = commitAndPushAll(ctx, client, files, branchName)
 	g.Expect(err).ToNot(HaveOccurred())
 
 	namespace := corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
+			Name: testID,
 		},
 	}
-	_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, &namespace, func() error {
-		return nil
-	})
-	g.Expect(err).To(Not(HaveOccurred()))
+	g.Expect(testEnv.Create(ctx, &namespace)).To(Succeed())
+	defer testEnv.Delete(ctx, &namespace)
 
 	secret := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: name,
+			Name:      testID,
+			Namespace: testID,
+		},
+		StringData: map[string]string{
+			"address": cfg.notificationURL,
 		},
 	}
-	_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, &secret, func() error {
-		secret.StringData = map[string]string{
-			"address": cfg.notificationURL,
-		}
-		return nil
-	})
-	g.Expect(err).To(Not(HaveOccurred()))
-	defer testEnv.Client.Delete(ctx, &secret)
+	g.Expect(testEnv.Create(ctx, &secret)).To(Succeed())
+	defer testEnv.Delete(ctx, &secret)
 
 	provider := notiv1beta2.Provider{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: name,
+			Name:      testID,
+			Namespace: testID,
 		},
-	}
-	_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, &provider, func() error {
-		provider.Spec = notiv1beta2.ProviderSpec{
+		Spec: notiv1beta2.ProviderSpec{
 			Type:    "azureeventhub",
 			Address: repoUrl,
 			SecretRef: &meta.LocalObjectReference{
-				Name: name,
+				Name: testID,
 			},
-		}
-		return nil
-	})
-	g.Expect(err).ToNot(HaveOccurred())
-	defer testEnv.Client.Delete(ctx, &provider)
+		},
+	}
+	g.Expect(testEnv.Create(ctx, &provider)).To(Succeed())
+	defer testEnv.Delete(ctx, &provider)
 
 	alert := notiv1beta2.Alert{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: name,
+			Name:      testID,
+			Namespace: testID,
 		},
-	}
-	_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, &alert, func() error {
-		alert.Spec = notiv1beta2.AlertSpec{
+		Spec: notiv1beta2.AlertSpec{
 			ProviderRef: meta.LocalObjectReference{
 				Name: provider.Name,
 			},
 			EventSources: []notiv1.CrossNamespaceObjectReference{
 				{
 					Kind:      "Kustomization",
-					Name:      name,
-					Namespace: name,
+					Name:      testID,
+					Namespace: testID,
 				},
 			},
-		}
-		return nil
-	})
-	g.Expect(err).ToNot(HaveOccurred())
-	defer testEnv.Client.Delete(ctx, &alert)
+		},
+	}
+	g.Expect(testEnv.Create(ctx, &alert)).ToNot(HaveOccurred())
+	defer testEnv.Delete(ctx, &alert)
 
 	g.Eventually(func() bool {
 		nn := types.NamespacedName{Name: alert.Name, Namespace: alert.Namespace}
 		alertObj := &notiv1beta2.Alert{}
-		err := testEnv.Client.Get(ctx, nn, alertObj)
+		err := testEnv.Get(ctx, nn, alertObj)
 		if err != nil {
 			return false
 		}
@@ -163,7 +150,7 @@ metadata:
 		}
 
 		return false
-	}, 60*time.Second, 5*time.Second).Should(BeTrue())
+	}, testTimeout, testInterval).Should(BeTrue())
 
 	modifyKsSpec := func(spec *kustomizev1.KustomizationSpec) {
 		spec.Interval = metav1.Duration{Duration: 30 * time.Second}
@@ -172,24 +159,26 @@ metadata:
 				APIVersion: "v1",
 				Kind:       "ConfigMap",
 				Name:       "foobar",
-				Namespace:  name,
+				Namespace:  testID,
 			},
 		}
 	}
-	g.Expect(setupNamespace(ctx, name, nsConfig{
+	g.Expect(setUpFluxConfig(ctx, testID, nsConfig{
 		repoURL:      repoUrl,
+		branch:       branchName,
 		path:         "./",
 		modifyKsSpec: modifyKsSpec,
 	})).To(Succeed())
-	defer deleteNamespace(ctx, name)
+	defer tearDownFluxConfig(ctx, testID)
 
 	g.Eventually(func() bool {
-		err := verifyGitAndKustomization(ctx, testEnv.Client, name, name)
+		err := verifyGitAndKustomization(ctx, testEnv, testID, testID)
 		if err != nil {
+			log.Println(err)
 			return false
 		}
 		return true
-	}, 60*time.Second, 5*time.Second).Should(BeTrue())
+	}, testTimeout, testInterval).Should(BeTrue())
 
 	// Wait to read even from event hub
 	g.Eventually(func() bool {
@@ -203,7 +192,7 @@ metadata:
 			}
 
 			if event.InvolvedObject.Kind == kustomizev1.KustomizationKind &&
-				event.InvolvedObject.Name == name && event.InvolvedObject.Namespace == name {
+				event.InvolvedObject.Name == testID && event.InvolvedObject.Namespace == testID {
 				return true
 			}
 
@@ -211,7 +200,7 @@ metadata:
 		default:
 			return false
 		}
-	}, 60*time.Second, 1*time.Second).Should(BeTrue())
+	}, testTimeout, 1*time.Second).Should(BeTrue())
 	err = listenerHandler.Close(ctx)
 	g.Expect(err).ToNot(HaveOccurred())
 	err = hub.Close(ctx)
@@ -221,14 +210,9 @@ metadata:
 func TestAzureDevOpsCommitStatus(t *testing.T) {
 	g := NewWithT(t)
 
-	// Currently, only azuredevops is supported
-	if infraOpts.Provider != "azure" {
-		fmt.Printf("Skipping commit status test for %s as it is not supported.\n", infraOpts.Provider)
-		return
-	}
-
 	ctx := context.TODO()
-	name := "commit-status"
+	branchName := "commit-status"
+	testID := branchName + randStringRunes(5)
 	manifest := `apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -240,7 +224,7 @@ metadata:
 	g.Expect(err).ToNot(HaveOccurred())
 	files := make(map[string]io.Reader)
 	files["configmap.yaml"] = strings.NewReader(manifest)
-	err = commitAndPushAll(ctx, c, files, name)
+	err = commitAndPushAll(ctx, c, files, branchName)
 	g.Expect(err).ToNot(HaveOccurred())
 
 	modifyKsSpec := func(spec *kustomizev1.KustomizationSpec) {
@@ -249,84 +233,77 @@ metadata:
 				APIVersion: "v1",
 				Kind:       "ConfigMap",
 				Name:       "foobar",
-				Namespace:  name,
+				Namespace:  testID,
 			},
 		}
 	}
-	err = setupNamespace(ctx, name, nsConfig{
+	err = setUpFluxConfig(ctx, testID, nsConfig{
+		branch:       branchName,
 		repoURL:      repoUrl,
 		path:         "./",
 		modifyKsSpec: modifyKsSpec,
 	})
 	g.Expect(err).ToNot(HaveOccurred())
-	defer deleteNamespace(ctx, name)
+	defer tearDownFluxConfig(ctx, testID)
 
 	g.Eventually(func() bool {
-		err := verifyGitAndKustomization(ctx, testEnv.Client, name, name)
+		err := verifyGitAndKustomization(ctx, testEnv, testID, testID)
 		if err != nil {
 			return false
 		}
 		return true
-	}, 10*time.Second, 1*time.Second)
+	}, testTimeout, testInterval)
 
 	secret := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "azuredevops-token",
-			Namespace: name,
+			Namespace: testID,
+		},
+		StringData: map[string]string{
+			"token": cfg.gitPat,
 		},
 	}
-	_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, &secret, func() error {
-		secret.StringData = map[string]string{
-			"token": cfg.gitPat,
-		}
-		return nil
-	})
-	defer testEnv.Client.Delete(ctx, &secret)
+	g.Expect(testEnv.Create(ctx, &secret)).To(Succeed())
+	defer testEnv.Delete(ctx, &secret)
 
 	provider := notiv1beta2.Provider{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "azuredevops",
-			Namespace: name,
+			Namespace: testID,
 		},
-	}
-	_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, &provider, func() error {
-		provider.Spec = notiv1beta2.ProviderSpec{
+		Spec: notiv1beta2.ProviderSpec{
 			Type:    "azuredevops",
 			Address: repoUrl,
 			SecretRef: &meta.LocalObjectReference{
 				Name: "azuredevops-token",
 			},
-		}
-		return nil
-	})
-	g.Expect(err).ToNot(HaveOccurred())
+		},
+	}
+	g.Expect(testEnv.Create(ctx, &provider)).To(Succeed())
 	defer testEnv.Delete(ctx, &provider)
 
 	alert := notiv1beta2.Alert{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "azuredevops",
-			Namespace: name,
+			Namespace: testID,
 		},
-	}
-	_, err = controllerutil.CreateOrUpdate(ctx, testEnv.Client, &alert, func() error {
-		alert.Spec = notiv1beta2.AlertSpec{
+		Spec: notiv1beta2.AlertSpec{
 			ProviderRef: meta.LocalObjectReference{
 				Name: provider.Name,
 			},
 			EventSources: []notiv1.CrossNamespaceObjectReference{
 				{
 					Kind:      "Kustomization",
-					Name:      name,
-					Namespace: name,
+					Name:      testID,
+					Namespace: testID,
 				},
 			},
-		}
-		return nil
-	})
-	g.Expect(err).ToNot(HaveOccurred())
+		},
+	}
+	g.Expect(testEnv.Create(ctx, &alert)).To(Succeed())
 	defer testEnv.Delete(ctx, &alert)
 
-	url, err := ParseGitAddress(repoUrl)
+	url, err := ParseAzureDevopsURL(repoUrl)
 	g.Expect(err).ToNot(HaveOccurred())
 
 	rev, err := c.Head()
@@ -359,7 +336,7 @@ type AzureDevOpsURL struct {
 }
 
 // TODO(somtochiama): move this into fluxcd/pkg and reuse in NC
-func ParseGitAddress(s string) (AzureDevOpsURL, error) {
+func ParseAzureDevopsURL(s string) (AzureDevOpsURL, error) {
 	var args AzureDevOpsURL
 	u, err := giturls.Parse(s)
 	if err != nil {

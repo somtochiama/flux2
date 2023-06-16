@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package test
+package integration
 
 import (
 	"context"
@@ -23,6 +23,7 @@ import (
 	"log"
 	"os"
 	"testing"
+	"time"
 
 	tfjson "github.com/hashicorp/terraform-json"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -49,6 +50,9 @@ const (
 )
 
 var (
+	// supportedProviders are the providers supported by the test.
+	supportedProviders = []string{"azure"}
+
 	// cfg is a struct containing different variables needed for the test.
 	cfg *testConfig
 
@@ -68,6 +72,11 @@ var (
 	// testEnv is the test environment. It contains test infrastructure and
 	// kubernetes client of the created cluster.
 	testEnv *tftestenv.Environment
+
+	// testTimeout is used as a timeout when testing a condition with gomega's eventually
+	testTimeout = 60 * time.Second
+	// testInterval is used as an interval when testing a condition with gomega's eventually
+	testInterval = 5 * time.Second
 )
 
 // testConfig hold different variable that will be needed by the different test functions.
@@ -112,7 +121,7 @@ type getTestConfig func(ctx context.Context, output map[string]*tfjson.StateOutp
 type registryLoginFunc func(ctx context.Context, output map[string]*tfjson.StateOutput) (string, error)
 
 // ProviderConfig contains the test configurations for the different cloud providers
-type ProviderConfig struct {
+type providerConfig struct {
 	terraformPath    string
 	createKubeconfig tftestenv.CreateKubeconfig
 	getTestConfig    getTestConfig
@@ -134,14 +143,18 @@ func TestMain(m *testing.M) {
 	infraOpts.Bindflags(flag.CommandLine)
 	flag.Parse()
 
-	err := infraOpts.Validate()
-	if err != nil {
-		log.Fatal(err)
+	// Validate the provider.
+	if infraOpts.Provider == "" {
+		log.Fatalf("-provider flag must be set to one of %v", supportedProviders)
 	}
-
-	// TODO(somtochiama): remove when tests have been updated to support GCP and AWS
-	if infraOpts.Provider != "azure" && infraOpts.Provider != "gcp" {
-		log.Fatal("only azure and gcp e2e tests are currently supported.")
+	var supported bool
+	for _, p := range supportedProviders {
+		if p == infraOpts.Provider {
+			supported = true
+		}
+	}
+	if !supported {
+		log.Fatalf("Unsupported provider %q, must be one of %v", infraOpts.Provider, supportedProviders)
 	}
 
 	exitVal, err := setup(m)
@@ -152,7 +165,7 @@ func TestMain(m *testing.M) {
 	os.Exit(exitVal)
 }
 
-func setup(m *testing.M) (exitVal int, err error) {
+func setup(m *testing.M) (int, error) {
 	ctx := context.TODO()
 
 	// get provider specific configuration
@@ -168,7 +181,7 @@ func setup(m *testing.M) (exitVal int, err error) {
 	}
 
 	// Create terraform infrastructure
-	testEnv, err = tftestenv.New(context.Background(), scheme.Scheme, providerCfg.terraformPath, kubeconfigPath, envOpts...)
+	testEnv, err = tftestenv.New(ctx, scheme.Scheme, providerCfg.terraformPath, kubeconfigPath, envOpts...)
 	if err != nil {
 		return 0, err
 	}
@@ -176,6 +189,13 @@ func setup(m *testing.M) (exitVal int, err error) {
 	defer func() {
 		if err := testEnv.Stop(ctx); err != nil {
 			log.Printf("Failed to stop environment: %v", err)
+		}
+
+		// Calling exit on panic prevents logging of panic error.
+		// Exit only on normal return. Explicitly detect panic and log the error
+		// on panic.
+		if err := recover(); err != nil {
+			log.Printf("panic: %v", err)
 		}
 	}()
 
@@ -228,10 +248,10 @@ func setup(m *testing.M) (exitVal int, err error) {
 	return result, nil
 }
 
-func getProviderConfig(provider string) (*ProviderConfig, error) {
+func getProviderConfig(provider string) (*providerConfig, error) {
 	switch provider {
 	case "azure":
-		return &ProviderConfig{
+		return &providerConfig{
 			terraformPath:    azureTerraformPath,
 			createKubeconfig: createKubeConfigAKS,
 			getTestConfig:    getTestConfigAKS,

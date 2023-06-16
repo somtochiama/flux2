@@ -1,5 +1,5 @@
 resource "azurerm_eventhub_namespace" "this" {
-  name                = "ehns-${local.name_suffix}"
+  name                = local.name
   location            = var.azure_location
   resource_group_name = module.aks.resource_group
   sku                 = "Basic"
@@ -8,7 +8,7 @@ resource "azurerm_eventhub_namespace" "this" {
 
 
 resource "azurerm_eventhub" "this" {
-  name                = "eh-${local.name_suffix}"
+  name                = local.name
   namespace_name      = azurerm_eventhub_namespace.this.name
   resource_group_name = module.aks.resource_group
   partition_count     = 1
@@ -16,7 +16,7 @@ resource "azurerm_eventhub" "this" {
 }
 
 resource "azurerm_eventhub_authorization_rule" "this" {
-  name                = "flux"
+  name                = local.name
   resource_group_name = module.aks.resource_group
   namespace_name      = azurerm_eventhub_namespace.this.name
   eventhub_name       = azurerm_eventhub.this.name
