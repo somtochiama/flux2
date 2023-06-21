@@ -48,7 +48,7 @@ func TestOCIHelmRelease(t *testing.T) {
 	g.Expect(testEnv.Create(ctx, &namespace)).To(Succeed())
 	defer testEnv.Delete(ctx, &namespace)
 
-	repoURL := fmt.Sprintf("%s/charts/podinfo", testRegistry)
+	repoURL := fmt.Sprintf("%s/charts/podinfo", cfg.testRegistry)
 	err := pushImagesFromURL(repoURL, "ghcr.io/stefanprodan/charts/podinfo:6.2.0", []string{"6.2.0"})
 	g.Expect(err).ToNot(HaveOccurred())
 
@@ -56,7 +56,7 @@ func TestOCIHelmRelease(t *testing.T) {
 	helmRepository := sourcev1.HelmRepository{
 		ObjectMeta: metav1.ObjectMeta{Name: testID, Namespace: testID},
 		Spec: sourcev1.HelmRepositorySpec{
-			URL: fmt.Sprintf("oci://%s", testRegistry),
+			URL: fmt.Sprintf("oci://%s", cfg.testRegistry),
 			Interval: metav1.Duration{
 				Duration: 5 * time.Minute,
 			},

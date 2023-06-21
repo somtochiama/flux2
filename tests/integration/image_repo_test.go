@@ -41,7 +41,7 @@ func TestImageRepositoryAndAutomation(t *testing.T) {
 	ctx := context.TODO()
 	branchName := "image-repository"
 	testID := branchName + "-" + randStringRunes(5)
-	imageURL := fmt.Sprintf("%s/podinfo", testRegistry)
+	imageURL := fmt.Sprintf("%s/podinfo", cfg.testRegistry)
 
 	manifest := fmt.Sprintf(`apiVersion: apps/v1
 kind: Deployment

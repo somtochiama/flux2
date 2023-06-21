@@ -1,4 +1,5 @@
 //go:build azure
+// +build azure
 
 /*
 Copyright 2023 The Flux authors

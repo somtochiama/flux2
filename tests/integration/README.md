@@ -26,18 +26,7 @@ The [azure](./terraform/azure) Terraform creates the AKS cluster and related res
 
 - Azure account with an active subscription to be able to create AKS and ACR,
   and permission to assign roles. Role assignment is required for allowing AKS workloads to access ACR.
-- For authentication for azure: Azure CLI, need to be logged in using `az login` as a User or as a Service Principal
-- For authentication with terraform:
-  When using a service principal, you need to set the `ARM-*` variables specified `.env.sample`  because authenticating
-  terraform with `az login` only works as a User, using a Service Principal leads to the following error:
-  > 
-  Terraform will use those variables for authentication instead of the CLI.
-  To use a service principal,(for example in CI environment)  In addition to authenticating Azure CLI you have to set  ARM-* variables in `.env.sample`  and source it
-  ```shell
-  # set ARM-* variables
-  # we still need to log in to (for ACR auth)
-  az login --service-principal -u $ARM_CLIENT_ID -p $ARM_CLIENT_SECRET --tenant $ARM_TENANT_ID
-  ```
+- Azure CLI, need to be logged in using `az login` as a User or as a Service Principal
 - An Azure DevOps organization, personal access token and ssh keys for accessing repositories
   within the organization. The scope required for the personal access token is:
   - `Project and Team` - read, write and manage access
@@ -58,17 +47,17 @@ a lot of the communication with the Azure API is offset to Terraform instead of 
 
 The following tests are currently implemented:
 
-- [x] Flux can be successfully installed on the cluster using the Flux CLI
-- [x] source-controller can clone cloud provider repositories (Azure DevOps, Google Cloud Source Repositories) (https+ssh)
-- [x] image-reflector-controller can list tags from provider container Registry image repositories
-- [x] kustomize-controller can decrypt secrets using SOPS and provider key vault
-- [x] image-automation-controller can create branches and push to cloud repositories (https+ssh)
-- [x] source-controller can pull charts from cloud provider container registry Helm repositories
+- Flux can be successfully installed on the cluster using the Flux CLI
+- source-controller can clone cloud provider repositories (Azure DevOps, Google Cloud Source Repositories) (https+ssh)
+- image-reflector-controller can list tags from provider container Registry image repositories
+- kustomize-controller can decrypt secrets using SOPS and provider key vault
+- image-automation-controller can create branches and push to cloud repositories (https+ssh)
+- source-controller can pull charts from cloud provider container registry Helm repositories
 
 This tests happen only for Azure since it is supported in the notification-controller:
 
-- [x] notification-controller can send commit status to Azure DevOps
-- [x] notification-controller can forward events to Azure Event Hub
+- notification-controller can send commit status to Azure DevOps
+- notification-controller can forward events to Azure Event Hub
 
 ### Running these tests locally
 
@@ -116,7 +105,6 @@ and used to test `ImageRepository` and `ImageUpdateAutomation`. The terraform re
 
 **IMPORTANT:** In case the terraform infrastructure results in a bad state, maybe due to a crash during the apply,
 the whole infrastructure can be destroyed by running terraform destroy in terraform/<provider> directory.
-
 
 ### Debugging the tests
 

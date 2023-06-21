@@ -59,11 +59,6 @@ var (
 	// infraOpts are the options for running the terraform environment
 	infraOpts tftestenv.Options
 
-	// testRegistry is the registry of the cloud provider.
-	// The podinfo and helm oci charts will be pushed to this
-	// registry
-	testRegistry string
-
 	// versions to tag and push for the podinfo image
 	oldVersion  = "6.0.0"
 	newVersion  = "6.0.1"
@@ -103,6 +98,9 @@ type testConfig struct {
 	envCredsData map[string]string
 	// kustomizationYaml is the  content of the kustomization.yaml for customizing the Flux manifests
 	kustomizationYaml string
+
+	// testRegistry is the registry of the cloud provider.
+	testRegistry string
 }
 
 // repoConfig contains the http/ssh urls for the created git repositories
@@ -211,12 +209,13 @@ func setup(m *testing.M) (int, error) {
 		return 0, err
 	}
 
-	testRegistry, err = providerCfg.registryLogin(ctx, outputs)
+	regUrl, err := providerCfg.registryLogin(ctx, outputs)
 	if err != nil {
 		return 0, err
 	}
 
-	err = pushTestImages(ctx, testRegistry, podinfoTags)
+	cfg.testRegistry = regUrl
+	err = pushTestImages(ctx, cfg.testRegistry, podinfoTags)
 	if err != nil {
 		return 0, err
 	}

@@ -7,8 +7,8 @@ test: sops-check
 	mkdir -p build
 	cp $(FLUX_BINARY) build/flux
 	# These two versions of podinfo are pushed to the cloud registry and used in tests for ImageUpdateAutomation
-#	docker pull ghcr.io/stefanprodan/podinfo:6.0.0
-#	docker pull ghcr.io/stefanprodan/podinfo:6.0.1
+	docker pull ghcr.io/stefanprodan/podinfo:6.0.0
+	docker pull ghcr.io/stefanprodan/podinfo:6.0.1
 	go test -timeout $(TEST_TIMEOUT) -v ./ $(GO_TEST_ARGS) $(PROVIDER_ARG)
 
 test-azure:
