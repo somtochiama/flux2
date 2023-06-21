@@ -44,6 +44,9 @@ const (
 	// azureTerraformPath is the path to the folder containing the
 	// terraform files for azure infra
 	azureTerraformPath = "./terraform/azure"
+	// gcpTerraformPath is the path to the folder containing the
+	// terraform files for gcp infra
+	gcpTerraformPath = "./terraform/gcp"
 
 	// kubeconfigPath is the path of the file containing the kubeconfig
 	kubeconfigPath = "./build/kubeconfig"
@@ -51,7 +54,7 @@ const (
 
 var (
 	// supportedProviders are the providers supported by the test.
-	supportedProviders = []string{"azure"}
+	supportedProviders = []string{"azure", "gcp"}
 
 	// cfg is a struct containing different variables needed for the test.
 	cfg *testConfig
@@ -255,6 +258,13 @@ func getProviderConfig(provider string) (*providerConfig, error) {
 			createKubeconfig: createKubeConfigAKS,
 			getTestConfig:    getTestConfigAKS,
 			registryLogin:    registryLoginACR,
+		}, nil
+	case "gcp":
+		return &providerConfig{
+			terraformPath:    gcpTerraformPath,
+			createKubeconfig: createKubeConfigGKE,
+			getTestConfig:    getTestConfigGKE,
+			registryLogin:    registryLoginGCR,
 		}, nil
 	default:
 		return nil, fmt.Errorf("provider '%s' is not supported", provider)
