@@ -80,6 +80,7 @@ spec:
                           name: [metadata, name]
                     labelsFromPath:
                       exported_namespace: [metadata, namespace]
+                      exported_name: [spec, ref, branch]
                       ready: [status, conditions, "[type=Ready]", status]
               - groupVersionKind:
                   group: source.toolkit.fluxcd.io
